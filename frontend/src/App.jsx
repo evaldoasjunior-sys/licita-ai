@@ -2,111 +2,160 @@ import { useState } from "react";
 
 function App() {
   const [numero, setNumero] = useState("");
-  const [vencimento, setVencimento] = useState("");
-  const [oportunidades, setOportunidades] = useState([]);
+  const [textoCompleto, setTextoCompleto] = useState("");
+  const [itens, setItens] = useState([]);
 
-  function adicionarOportunidade() {
-    if (!numero || !vencimento) {
-      alert("Preencha número e vencimento.");
+  function identificarCategoria(texto) {
+    const t = texto.toUpperCase();
+
+    if (t.includes("TRANSMISSOR DE VAZÃO")) return "Transmissor de Vazão";
+    if (t.includes("TRANSMISSOR DE TEMPERATURA")) return "Transmissor de Temperatura";
+    if (t.includes("TRANSMISSOR DE PRESSÃO")) return "Transmissor de Pressão";
+    if (t.includes("MEDIDOR DE UMIDADE")) return "Medidor de Umidade";
+    if (t.includes("CONTATOR")) return "Contator";
+    if (t.includes("VÁLVULA") || t.includes("VALVULA")) return "Válvula";
+    if (t.includes("FUSÍVEL") || t.includes("FUSIVEL")) return "Fusível";
+
+    return "Não identificada";
+  }
+
+  function extrairReferencias(texto) {
+    const t = texto.toUpperCase();
+    const referencias = [];
+
+    const tp = t.match(/TP:\s*([A-Z0-9\s]+?)\s+([A-Z0-9\-\/\.]+)/);
+    if (tp) {
+      referencias.push({
+        tipo: "Tp",
+        fabricante: tp[1].trim(),
+        codigo: tp[2].trim(),
+      });
+    }
+
+    const refRegex = /REFERÊNCIA:\s*(.*?)\s*\/\s*FABRICANTE:\s*([A-Z0-9\s]+)/g;
+    let match;
+
+    while ((match = refRegex.exec(t)) !== null) {
+      referencias.push({
+        tipo: "Referência",
+        fabricante: match[2].trim(),
+        codigo: match[1].trim(),
+      });
+    }
+
+    return referencias;
+  }
+
+  function quebrarEmItens() {
+    if (!textoCompleto) {
+      alert("Cole o texto da oportunidade.");
       return;
     }
 
-    const nova = {
-      id: Date.now(),
-      numero,
-      vencimento,
-      status: "Em análise",
-    };
+    const linhas = textoCompleto
+      .split("\n")
+      .map((linha) => linha.trim())
+      .filter((linha) => linha.length > 0);
 
-    setOportunidades([...oportunidades, nova]);
+    const novosItens = [];
+    let itemAtual = null;
 
-    setNumero("");
-    setVencimento("");
-  }
+    linhas.forEach((linha) => {
+      const inicioItem = linha.match(/^(\d+)\s+(\d+)\s+(.*)/);
 
-  function alterarStatus(id, novoStatus) {
-    const atualizadas = oportunidades.map((op) =>
-      op.id === id ? { ...op, status: novoStatus } : op
-    );
+      if (inicioItem) {
+        if (itemAtual) {
+          novosItens.push(itemAtual);
+        }
 
-    setOportunidades(atualizadas);
+        itemAtual = {
+          item: inicioItem[1],
+          quantidade: inicioItem[2],
+          descricao: inicioItem[3],
+        };
+      } else if (itemAtual) {
+        itemAtual.descricao += " " + linha;
+      }
+    });
+
+    if (itemAtual) {
+      novosItens.push(itemAtual);
+    }
+
+    const itensAnalisados = novosItens.map((item) => ({
+      ...item,
+      categoria: identificarCategoria(item.descricao),
+      referencias: extrairReferencias(item.descricao),
+    }));
+
+    setItens(itensAnalisados);
   }
 
   return (
     <div style={{ padding: "20px", fontFamily: "Arial" }}>
       <h1>LICITA AI</h1>
+      <h2>MVP 0.8 - Importar oportunidade inteira</h2>
 
-      <h2>Nova Oportunidade</h2>
-
-      <p>Número:</p>
+      <p>Número da oportunidade:</p>
       <input
         value={numero}
         onChange={(e) => setNumero(e.target.value)}
-        placeholder="7003927991"
+        placeholder="Ex: 7003927991"
+        style={{ width: "300px", padding: "8px" }}
       />
 
-      <p>Vencimento:</p>
-      <input
-        value={vencimento}
-        onChange={(e) => setVencimento(e.target.value)}
-        placeholder="21/09/2026"
+      <p>Texto completo da oportunidade:</p>
+      <textarea
+        rows="15"
+        cols="100"
+        value={textoCompleto}
+        onChange={(e) => setTextoCompleto(e.target.value)}
+        placeholder="Cole aqui a oportunidade inteira copiada da Petronect ou do Word"
       />
 
       <br />
       <br />
 
-      <button onClick={adicionarOportunidade}>
-        Adicionar Oportunidade
-      </button>
+      <button onClick={quebrarEmItens}>Quebrar em itens</button>
 
       <hr />
 
-      <h2>Oportunidades</h2>
+      <h2>Itens identificados da oportunidade {numero || "(sem número)"}</h2>
 
-      {oportunidades.map((op) => (
+      {itens.map((item, index) => (
         <div
-          key={op.id}
+          key={index}
           style={{
             border: "1px solid #ccc",
             padding: "15px",
             marginBottom: "15px",
           }}
         >
-          <h3>{op.numero}</h3>
+          <h3>
+            Item {item.item} | Qtd {item.quantidade}
+          </h3>
 
           <p>
-            <strong>Vencimento:</strong> {op.vencimento}
+            <strong>Categoria:</strong> {item.categoria}
           </p>
 
           <p>
-            <strong>Status:</strong> {op.status}
+            <strong>Descrição:</strong> {item.descricao}
           </p>
 
-          <button
-            onClick={() =>
-              alterarStatus(op.id, "Sem Interesse")
-            }
-          >
-            Sem Interesse
-          </button>
+          <h4>Referências / Fabricantes</h4>
 
-          <button
-            onClick={() =>
-              alterarStatus(op.id, "Com Interesse")
-            }
-            style={{ marginLeft: "10px" }}
-          >
-            Com Interesse
-          </button>
-
-          <button
-            onClick={() =>
-              alterarStatus(op.id, "Cotação Enviada")
-            }
-            style={{ marginLeft: "10px" }}
-          >
-            Cotação Enviada
-          </button>
+          {item.referencias.length === 0 ? (
+            <p>Nenhuma referência identificada.</p>
+          ) : (
+            <ul>
+              {item.referencias.map((ref, i) => (
+                <li key={i}>
+                  <strong>{ref.tipo}:</strong> {ref.fabricante} | {ref.codigo}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       ))}
     </div>
