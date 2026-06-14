@@ -1,84 +1,112 @@
 import { useState } from "react";
 
 function App() {
-  const [nome, setNome] = useState("");
-  const [email, setEmail] = useState("");
-  const [telefone, setTelefone] = useState("");
-  const [fornecedores, setFornecedores] = useState([]);
+  const [numero, setNumero] = useState("");
+  const [vencimento, setVencimento] = useState("");
+  const [oportunidades, setOportunidades] = useState([]);
 
-  function salvarFornecedor() {
-    if (!nome || !email) {
-      alert("Preencha nome e email.");
+  function adicionarOportunidade() {
+    if (!numero || !vencimento) {
+      alert("Preencha número e vencimento.");
       return;
     }
 
-    const novoFornecedor = {
-      nome,
-      email,
-      telefone,
+    const nova = {
+      id: Date.now(),
+      numero,
+      vencimento,
+      status: "Em análise",
     };
 
-    setFornecedores([...fornecedores, novoFornecedor]);
+    setOportunidades([...oportunidades, nova]);
 
-    setNome("");
-    setEmail("");
-    setTelefone("");
+    setNumero("");
+    setVencimento("");
+  }
 
-    alert("Fornecedor cadastrado!");
+  function alterarStatus(id, novoStatus) {
+    const atualizadas = oportunidades.map((op) =>
+      op.id === id ? { ...op, status: novoStatus } : op
+    );
+
+    setOportunidades(atualizadas);
   }
 
   return (
     <div style={{ padding: "20px", fontFamily: "Arial" }}>
       <h1>LICITA AI</h1>
 
-      <h2>Cadastro de Fornecedores</h2>
+      <h2>Nova Oportunidade</h2>
 
-      <p>Nome:</p>
+      <p>Número:</p>
       <input
-        value={nome}
-        onChange={(e) => setNome(e.target.value)}
-        style={{ width: "300px" }}
+        value={numero}
+        onChange={(e) => setNumero(e.target.value)}
+        placeholder="7003927991"
       />
 
-      <p>Email:</p>
+      <p>Vencimento:</p>
       <input
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={{ width: "300px" }}
-      />
-
-      <p>Telefone:</p>
-      <input
-        value={telefone}
-        onChange={(e) => setTelefone(e.target.value)}
-        style={{ width: "300px" }}
+        value={vencimento}
+        onChange={(e) => setVencimento(e.target.value)}
+        placeholder="21/09/2026"
       />
 
       <br />
       <br />
 
-      <button onClick={salvarFornecedor}>
-        Salvar Fornecedor
+      <button onClick={adicionarOportunidade}>
+        Adicionar Oportunidade
       </button>
 
       <hr />
 
-      <h2>Fornecedores Cadastrados</h2>
+      <h2>Oportunidades</h2>
 
-      {fornecedores.map((f, index) => (
+      {oportunidades.map((op) => (
         <div
-          key={index}
+          key={op.id}
           style={{
             border: "1px solid #ccc",
-            padding: "10px",
-            marginBottom: "10px",
+            padding: "15px",
+            marginBottom: "15px",
           }}
         >
-          <strong>{f.nome}</strong>
-          <br />
-          {f.email}
-          <br />
-          {f.telefone}
+          <h3>{op.numero}</h3>
+
+          <p>
+            <strong>Vencimento:</strong> {op.vencimento}
+          </p>
+
+          <p>
+            <strong>Status:</strong> {op.status}
+          </p>
+
+          <button
+            onClick={() =>
+              alterarStatus(op.id, "Sem Interesse")
+            }
+          >
+            Sem Interesse
+          </button>
+
+          <button
+            onClick={() =>
+              alterarStatus(op.id, "Com Interesse")
+            }
+            style={{ marginLeft: "10px" }}
+          >
+            Com Interesse
+          </button>
+
+          <button
+            onClick={() =>
+              alterarStatus(op.id, "Cotação Enviada")
+            }
+            style={{ marginLeft: "10px" }}
+          >
+            Cotação Enviada
+          </button>
         </div>
       ))}
     </div>
