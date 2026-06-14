@@ -6,7 +6,7 @@ function Especialidades() {
   const [telefone, setTelefone] = useState("");
   const [fabricante, setFabricante] = useState("");
   const [categoria, setCategoria] = useState("");
-  const [especialidades, setEspecialidades] = useState([]);
+  const [fornecedores, setFornecedores] = useState([]);
 
   function adicionarEspecialidade() {
     if (!fornecedor || !fabricante || !categoria) {
@@ -14,15 +14,40 @@ function Especialidades() {
       return;
     }
 
-    const nova = {
-      fornecedor,
-      email,
-      telefone,
+    const novaEspecialidade = {
       fabricante,
       categoria,
     };
 
-    setEspecialidades([...especialidades, nova]);
+    const fornecedorExistente = fornecedores.find(
+      (f) => f.nome.toUpperCase() === fornecedor.toUpperCase()
+    );
+
+    if (fornecedorExistente) {
+      const atualizados = fornecedores.map((f) => {
+        if (f.nome.toUpperCase() === fornecedor.toUpperCase()) {
+          return {
+            ...f,
+            email: email || f.email,
+            telefone: telefone || f.telefone,
+            especialidades: [...f.especialidades, novaEspecialidade],
+          };
+        }
+
+        return f;
+      });
+
+      setFornecedores(atualizados);
+    } else {
+      const novoFornecedor = {
+        nome: fornecedor,
+        email,
+        telefone,
+        especialidades: [novaEspecialidade],
+      };
+
+      setFornecedores([...fornecedores, novoFornecedor]);
+    }
 
     setFabricante("");
     setCategoria("");
@@ -35,7 +60,10 @@ function Especialidades() {
       <h2>Base de Conhecimento Comercial</h2>
 
       <p>Fornecedor:</p>
-      <input value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} />
+      <input
+        value={fornecedor}
+        onChange={(e) => setFornecedor(e.target.value)}
+      />
 
       <p>Email:</p>
       <input value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -44,29 +72,52 @@ function Especialidades() {
       <input value={telefone} onChange={(e) => setTelefone(e.target.value)} />
 
       <p>Fabricante:</p>
-      <input value={fabricante} onChange={(e) => setFabricante(e.target.value)} />
+      <input
+        value={fabricante}
+        onChange={(e) => setFabricante(e.target.value)}
+      />
 
       <p>Categoria:</p>
-      <input value={categoria} onChange={(e) => setCategoria(e.target.value)} />
+      <input
+        value={categoria}
+        onChange={(e) => setCategoria(e.target.value)}
+      />
 
       <br />
       <br />
 
-      <button onClick={adicionarEspecialidade}>Adicionar Especialidade</button>
+      <button onClick={adicionarEspecialidade}>
+        Adicionar Especialidade
+      </button>
 
       <hr />
 
-      <h3>Especialidades cadastradas</h3>
+      <h3>Fornecedores cadastrados</h3>
 
-      {especialidades.map((item, index) => (
-        <div key={index} style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px" }}>
-          <strong>{item.fornecedor}</strong>
+      {fornecedores.map((f, index) => (
+        <div
+          key={index}
+          style={{
+            border: "1px solid #ccc",
+            padding: "10px",
+            marginBottom: "10px",
+          }}
+        >
+          <strong>{f.nome}</strong>
           <br />
-          {item.email}
+          {f.email}
           <br />
-          {item.telefone}
-          <br />
-          <strong>{item.fabricante}</strong> | {item.categoria}
+          {f.telefone}
+
+          <h4>Especialidades</h4>
+
+          <ul>
+            {f.especialidades.map((esp, i) => (
+              <li key={i}>
+                {esp.fabricante} | {esp.categoria}
+              </li>
+            ))}
+          </ul>
         </div>
       ))}
     </div>
