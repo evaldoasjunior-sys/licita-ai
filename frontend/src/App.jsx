@@ -3,6 +3,7 @@ import Oportunidades from "./components/Oportunidades";
 import Itens from "./components/Itens";
 import Especialidades from "./components/Especialidades";
 import Cotacoes from "./components/Cotacoes";
+import HistoricoCotacoes from "./components/HistoricoCotacoes";
 
 function App() {
   const [tela, setTela] = useState("oportunidades");
@@ -13,21 +14,20 @@ function App() {
 
       <button onClick={() => setTela("oportunidades")}>Oportunidades</button>
       <button onClick={() => setTela("itens")} style={{ marginLeft: "10px" }}>
-        Itens
-      </button>
+        Itens</button>
       <button onClick={() => setTela("especialidades")} style={{ marginLeft: "10px" }}>
-        Base Comercial
-      </button>
+        Base Comercial</button>
       <button onClick={() => setTela("cotacoes")} style={{ marginLeft: "10px" }}>
-        Cotações
-      </button>
-
+        Cotações</button>
+      <button onClick={() => setTela("historico")} style={{ marginLeft: "10px" }}>
+        Histórico</button>
       <hr />
 
       {tela === "oportunidades" && <Oportunidades />}
       {tela === "itens" && <Itens />}
       {tela === "especialidades" && <Especialidades />}
       {tela === "cotacoes" && <Cotacoes />}
+      {tela === "historico" && <HistoricoCotacoes />}
     </div>
   );
 }
