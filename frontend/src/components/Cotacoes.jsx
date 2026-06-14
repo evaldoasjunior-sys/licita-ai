@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function Cotacoes() {
   const [oportunidade, setOportunidade] = useState("");
@@ -6,6 +6,18 @@ function Cotacoes() {
   const [email, setEmail] = useState("");
   const [descricao, setDescricao] = useState("");
   const [emailGerado, setEmailGerado] = useState("");
+
+  useEffect(() => {
+    const dados = localStorage.getItem("cotacaoAtual");
+
+    if (dados) {
+      const cotacao = JSON.parse(dados);
+
+      setFornecedor(cotacao.fornecedor || "");
+      setEmail(cotacao.email || "");
+      setDescricao(cotacao.descricao || "");
+    }
+  }, []);
 
   function registrarNoHistorico() {
     const dados = localStorage.getItem("cotacoes");

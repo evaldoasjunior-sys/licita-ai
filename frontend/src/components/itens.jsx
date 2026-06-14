@@ -9,7 +9,7 @@ function Itens() {
     return dados ? JSON.parse(dados) : [];
   })();
 
-  function buscarFornecedores(item) {
+  function buscarFornecedores(item, numeroOportunidade) {
     const dados = localStorage.getItem("fornecedores");
     const fornecedores = dados ? JSON.parse(dados) : [];
 
@@ -21,8 +21,30 @@ function Itens() {
       )
     );
 
-    setItemSelecionado(item);
+    setItemSelecionado({
+      ...item,
+      oportunidade: numeroOportunidade,
+    });
+
     setResultado(encontrados);
+  }
+
+  function prepararCotacao(fornecedor) {
+    localStorage.setItem(
+      "cotacaoAtual",
+      JSON.stringify({
+        oportunidade: itemSelecionado.oportunidade,
+        fornecedor: fornecedor.nome,
+        email: fornecedor.email,
+        fabricante: itemSelecionado.fabricante,
+        categoria: itemSelecionado.categoria,
+        descricao: `Item ${itemSelecionado.itemNumero} - Qtd ${itemSelecionado.quantidade}
+
+${itemSelecionado.descricao}`,
+      })
+    );
+
+    alert("Cotação preparada. Agora abra a tela Cotações.");
   }
 
   return (
@@ -55,27 +77,13 @@ function Itens() {
                     marginBottom: "10px",
                   }}
                 >
-                  <p>
-                    <strong>Item:</strong> {item.itemNumero}
-                  </p>
+                  <p><strong>Item:</strong> {item.itemNumero}</p>
+                  <p><strong>Quantidade:</strong> {item.quantidade}</p>
+                  <p><strong>Fabricante:</strong> {item.fabricante}</p>
+                  <p><strong>Categoria:</strong> {item.categoria}</p>
+                  <p><strong>Descrição:</strong> {item.descricao}</p>
 
-                  <p>
-                    <strong>Quantidade:</strong> {item.quantidade}
-                  </p>
-
-                  <p>
-                    <strong>Fabricante:</strong> {item.fabricante}
-                  </p>
-
-                  <p>
-                    <strong>Categoria:</strong> {item.categoria}
-                  </p>
-
-                  <p>
-                    <strong>Descrição:</strong> {item.descricao}
-                  </p>
-
-                  <button onClick={() => buscarFornecedores(item)}>
+                  <button onClick={() => buscarFornecedores(item, op.numero)}>
                     Buscar fornecedores
                   </button>
                 </div>
@@ -113,6 +121,13 @@ function Itens() {
             {f.email}
             <br />
             {f.telefone}
+
+            <br />
+            <br />
+
+            <button onClick={() => prepararCotacao(f)}>
+              Gerar Cotação
+            </button>
           </div>
         ))
       )}
