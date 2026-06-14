@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function Especialidades() {
   const [fornecedor, setFornecedor] = useState("");
@@ -6,7 +6,19 @@ function Especialidades() {
   const [telefone, setTelefone] = useState("");
   const [fabricante, setFabricante] = useState("");
   const [categoria, setCategoria] = useState("");
-  const [fornecedores, setFornecedores] = useState([]);
+
+  const [fornecedores, setFornecedores] = useState(() => {
+    const dadosSalvos = localStorage.getItem("fornecedores");
+    return dadosSalvos ? JSON.parse(dadosSalvos) : [];
+  });
+
+  const [buscaFabricante, setBuscaFabricante] = useState("");
+  const [buscaCategoria, setBuscaCategoria] = useState("");
+  const [resultadoBusca, setResultadoBusca] = useState([]);
+
+  useEffect(() => {
+    localStorage.setItem("fornecedores", JSON.stringify(fornecedores));
+  }, [fornecedores]);
 
   function adicionarEspecialidade() {
     if (!fornecedor || !fabricante || !categoria) {
@@ -14,39 +26,35 @@ function Especialidades() {
       return;
     }
 
-    const novaEspecialidade = {
-      fabricante,
-      categoria,
-    };
+    const novaEspecialidade = { fabricante, categoria };
 
-    const fornecedorExistente = fornecedores.find(
+    const existe = fornecedores.some(
       (f) => f.nome.toUpperCase() === fornecedor.toUpperCase()
     );
 
-    if (fornecedorExistente) {
-      const atualizados = fornecedores.map((f) => {
-        if (f.nome.toUpperCase() === fornecedor.toUpperCase()) {
-          return {
-            ...f,
-            email: email || f.email,
-            telefone: telefone || f.telefone,
-            especialidades: [...f.especialidades, novaEspecialidade],
-          };
-        }
-
-        return f;
-      });
-
-      setFornecedores(atualizados);
+    if (existe) {
+      setFornecedores(
+        fornecedores.map((f) =>
+          f.nome.toUpperCase() === fornecedor.toUpperCase()
+            ? {
+                ...f,
+                email: email || f.email,
+                telefone: telefone || f.telefone,
+                especialidades: [...f.especialidades, novaEspecialidade],
+              }
+            : f
+        )
+      );
     } else {
-      const novoFornecedor = {
-        nome: fornecedor,
-        email,
-        telefone,
-        especialidades: [novaEspecialidade],
-      };
-
-      setFornecedores([...fornecedores, novoFornecedor]);
+      setFornecedores([
+        ...fornecedores,
+        {
+          nome: fornecedor,
+          email,
+          telefone,
+          especialidades: [novaEspecialidade],
+        },
+      ]);
     }
 
     setFabricante("");
@@ -55,15 +63,24 @@ function Especialidades() {
     alert("Especialidade adicionada!");
   }
 
+  function buscarFornecedores() {
+    const encontrados = fornecedores.filter((f) =>
+      f.especialidades.some(
+        (esp) =>
+          esp.fabricante.toUpperCase() === buscaFabricante.toUpperCase() &&
+          esp.categoria.toUpperCase() === buscaCategoria.toUpperCase()
+      )
+    );
+
+    setResultadoBusca(encontrados);
+  }
+
   return (
     <div>
       <h2>Base de Conhecimento Comercial</h2>
 
       <p>Fornecedor:</p>
-      <input
-        value={fornecedor}
-        onChange={(e) => setFornecedor(e.target.value)}
-      />
+      <input value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} />
 
       <p>Email:</p>
       <input value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -72,41 +89,59 @@ function Especialidades() {
       <input value={telefone} onChange={(e) => setTelefone(e.target.value)} />
 
       <p>Fabricante:</p>
+      <input value={fabricante} onChange={(e) => setFabricante(e.target.value)} />
+
+      <p>Categoria:</p>
+      <input value={categoria} onChange={(e) => setCategoria(e.target.value)} />
+
+      <br /><br />
+
+      <button onClick={adicionarEspecialidade}>Adicionar Especialidade</button>
+
+      <hr />
+
+      <h3>Buscar fornecedor</h3>
+
+      <p>Fabricante:</p>
       <input
-        value={fabricante}
-        onChange={(e) => setFabricante(e.target.value)}
+        value={buscaFabricante}
+        onChange={(e) => setBuscaFabricante(e.target.value)}
+        placeholder="Ex: EMERSON"
       />
 
       <p>Categoria:</p>
       <input
-        value={categoria}
-        onChange={(e) => setCategoria(e.target.value)}
+        value={buscaCategoria}
+        onChange={(e) => setBuscaCategoria(e.target.value)}
+        placeholder="Ex: Transmissor de Vazão"
       />
 
-      <br />
-      <br />
+      <br /><br />
 
-      <button onClick={adicionarEspecialidade}>
-        Adicionar Especialidade
-      </button>
+      <button onClick={buscarFornecedores}>Buscar</button>
+
+      <h4>Resultado da busca</h4>
+
+      {resultadoBusca.length === 0 ? (
+        <p>Nenhum fornecedor encontrado.</p>
+      ) : (
+        resultadoBusca.map((f, index) => (
+          <div key={index} style={{ border: "1px solid #999", padding: "10px", marginBottom: "10px" }}>
+            <strong>{f.nome}</strong><br />
+            {f.email}<br />
+            {f.telefone}
+          </div>
+        ))
+      )}
 
       <hr />
 
       <h3>Fornecedores cadastrados</h3>
 
       {fornecedores.map((f, index) => (
-        <div
-          key={index}
-          style={{
-            border: "1px solid #ccc",
-            padding: "10px",
-            marginBottom: "10px",
-          }}
-        >
-          <strong>{f.nome}</strong>
-          <br />
-          {f.email}
-          <br />
+        <div key={index} style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px" }}>
+          <strong>{f.nome}</strong><br />
+          {f.email}<br />
           {f.telefone}
 
           <h4>Especialidades</h4>
