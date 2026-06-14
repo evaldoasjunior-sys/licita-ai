@@ -2,6 +2,7 @@ import { useState } from "react";
 import Oportunidades from "./components/Oportunidades";
 import Itens from "./components/Itens";
 import Especialidades from "./components/Especialidades";
+import Cotacoes from "./components/Cotacoes";
 
 function App() {
   const [tela, setTela] = useState("oportunidades");
@@ -17,12 +18,16 @@ function App() {
       <button onClick={() => setTela("especialidades")} style={{ marginLeft: "10px" }}>
         Base Comercial
       </button>
+      <button onClick={() => setTela("cotacoes")} style={{ marginLeft: "10px" }}>
+        Cotações
+      </button>
 
       <hr />
 
       {tela === "oportunidades" && <Oportunidades />}
       {tela === "itens" && <Itens />}
       {tela === "especialidades" && <Especialidades />}
+      {tela === "cotacoes" && <Cotacoes />}
     </div>
   );
 }
