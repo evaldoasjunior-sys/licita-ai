@@ -1,91 +1,86 @@
 import { useState } from "react";
 
 function App() {
-  const [numero, setNumero] = useState("");
-  const [descricao, setDescricao] = useState("");
-  const [resultado, setResultado] = useState(null);
-  const [salvos, setSalvos] = useState([]);
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [fornecedores, setFornecedores] = useState([]);
 
-  function analisarDescricao() {
-    const texto = descricao.toUpperCase();
-    const fabricanteCodigo = texto.match(/TP:\s*([A-Z0-9]+)\s+([A-Z0-9\-]+)/);
+  function salvarFornecedor() {
+    if (!nome || !email) {
+      alert("Preencha nome e email.");
+      return;
+    }
 
-    setResultado({
-      oportunidade: numero || "Não informado",
-      fabricante: fabricanteCodigo ? fabricanteCodigo[1] : "Não identificado",
-      codigo: fabricanteCodigo ? fabricanteCodigo[2] : "Não identificado",
-      categoria:
-        texto.includes("FUSÍVEL") || texto.includes("FUSIVEL")
-          ? "Fusível NH"
-          : "Não identificada",
-      status: "Aguardando Cotação",
-    });
-  }
+    const novoFornecedor = {
+      nome,
+      email,
+      telefone,
+    };
 
-  function salvarResultado() {
-    if (!resultado) return;
-    setSalvos([...salvos, resultado]);
-    alert("Oportunidade salva no MVP!");
+    setFornecedores([...fornecedores, novoFornecedor]);
+
+    setNome("");
+    setEmail("");
+    setTelefone("");
+
+    alert("Fornecedor cadastrado!");
   }
 
   return (
     <div style={{ padding: "20px", fontFamily: "Arial" }}>
       <h1>LICITA AI</h1>
-      <h2>Nova Oportunidade</h2>
 
-      <label>Número da oportunidade:</label>
-      <br />
+      <h2>Cadastro de Fornecedores</h2>
+
+      <p>Nome:</p>
       <input
-        type="text"
-        value={numero}
-        onChange={(e) => setNumero(e.target.value)}
-        placeholder="Ex: 7004613037"
-        style={{ width: "300px", padding: "8px" }}
+        value={nome}
+        onChange={(e) => setNome(e.target.value)}
+        style={{ width: "300px" }}
+      />
+
+      <p>Email:</p>
+      <input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        style={{ width: "300px" }}
+      />
+
+      <p>Telefone:</p>
+      <input
+        value={telefone}
+        onChange={(e) => setTelefone(e.target.value)}
+        style={{ width: "300px" }}
       />
 
       <br />
       <br />
 
-      <label>Descrição:</label>
-      <br />
-      <textarea
-        rows="10"
-        cols="80"
-        value={descricao}
-        onChange={(e) => setDescricao(e.target.value)}
-        placeholder="Cole aqui a descrição da Petronect"
-      />
+      <button onClick={salvarFornecedor}>
+        Salvar Fornecedor
+      </button>
 
-      <br />
-      <br />
+      <hr />
 
-      <button onClick={analisarDescricao}>Analisar</button>
+      <h2>Fornecedores Cadastrados</h2>
 
-      {resultado && (
-        <div style={{ marginTop: "20px", border: "1px solid #ccc", padding: "15px", width: "500px" }}>
-          <h3>Resultado da análise</h3>
-          <p><strong>Oportunidade:</strong> {resultado.oportunidade}</p>
-          <p><strong>Categoria:</strong> {resultado.categoria}</p>
-          <p><strong>Fabricante:</strong> {resultado.fabricante}</p>
-          <p><strong>Código:</strong> {resultado.codigo}</p>
-          <p><strong>Status:</strong> {resultado.status}</p>
-
-          <button onClick={salvarResultado}>Salvar</button>
+      {fornecedores.map((f, index) => (
+        <div
+          key={index}
+          style={{
+            border: "1px solid #ccc",
+            padding: "10px",
+            marginBottom: "10px",
+          }}
+        >
+          <strong>{f.nome}</strong>
+          <br />
+          {f.email}
+          <br />
+          {f.telefone}
         </div>
-      )}
-
-      {salvos.length > 0 && (
-        <div style={{ marginTop: "30px" }}>
-          <h3>Oportunidades salvas nesta sessão</h3>
-          <ul>
-            {salvos.map((item, index) => (
-              <li key={index}>
-                {item.oportunidade} - {item.fabricante} - {item.codigo} - {item.status}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      ))}
     </div>
   );
 }
