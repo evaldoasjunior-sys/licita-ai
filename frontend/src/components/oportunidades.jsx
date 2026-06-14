@@ -7,6 +7,8 @@ function Oportunidades() {
   const [itemNumero, setItemNumero] = useState("");
   const [quantidade, setQuantidade] = useState("");
   const [descricao, setDescricao] = useState("");
+  const [fabricante, setFabricante] = useState("");
+  const [categoria, setCategoria] = useState("");
 
   const [oportunidades, setOportunidades] = useState(() => {
     const dados = localStorage.getItem("oportunidades");
@@ -41,8 +43,8 @@ function Oportunidades() {
   }
 
   function adicionarItem(numeroOportunidade) {
-    if (!itemNumero || !quantidade || !descricao) {
-      alert("Preencha item, quantidade e descrição.");
+    if (!itemNumero || !quantidade || !descricao || !fabricante || !categoria) {
+      alert("Preencha item, quantidade, descrição, fabricante e categoria.");
       return;
     }
 
@@ -50,6 +52,8 @@ function Oportunidades() {
       itemNumero,
       quantidade,
       descricao,
+      fabricante,
+      categoria,
     };
 
     const atualizadas = oportunidades.map((op) =>
@@ -63,6 +67,8 @@ function Oportunidades() {
     setItemNumero("");
     setQuantidade("");
     setDescricao("");
+    setFabricante("");
+    setCategoria("");
 
     alert("Item adicionado!");
   }
@@ -135,6 +141,20 @@ function Oportunidades() {
             placeholder="Ex: 2"
           />
 
+          <p>Fabricante:</p>
+          <input
+            value={fabricante}
+            onChange={(e) => setFabricante(e.target.value)}
+            placeholder="Ex: EMERSON"
+          />
+
+          <p>Categoria:</p>
+          <input
+            value={categoria}
+            onChange={(e) => setCategoria(e.target.value)}
+            placeholder="Ex: Transmissor de Vazão"
+          />
+
           <p>Descrição:</p>
           <textarea
             rows="6"
@@ -159,7 +179,8 @@ function Oportunidades() {
             <ul>
               {op.itens.map((item, i) => (
                 <li key={i}>
-                  Item {item.itemNumero} | Qtd {item.quantidade} | {item.descricao}
+                  Item {item.itemNumero} | Qtd {item.quantidade} |{" "}
+                  {item.fabricante} | {item.categoria} | {item.descricao}
                 </li>
               ))}
             </ul>
