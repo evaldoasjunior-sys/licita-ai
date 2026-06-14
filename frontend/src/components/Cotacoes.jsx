@@ -7,6 +7,21 @@ function Cotacoes() {
   const [descricao, setDescricao] = useState("");
   const [emailGerado, setEmailGerado] = useState("");
 
+  function registrarNoHistorico() {
+    const dados = localStorage.getItem("cotacoes");
+    const cotacoes = dados ? JSON.parse(dados) : [];
+
+    const novaCotacao = {
+      fornecedor,
+      email,
+      oportunidade,
+      status: "Aguardando resposta",
+      data: new Date().toLocaleDateString("pt-BR"),
+    };
+
+    localStorage.setItem("cotacoes", JSON.stringify([...cotacoes, novaCotacao]));
+  }
+
   function gerarEmail() {
     const texto = `Assunto: Solicitação de Cotação - Oportunidade ${oportunidade}
 
@@ -26,6 +41,9 @@ Favor informar:
 Atenciosamente,`;
 
     setEmailGerado(texto);
+    registrarNoHistorico();
+
+    alert("E-mail gerado e cotação registrada no histórico!");
   }
 
   return (
