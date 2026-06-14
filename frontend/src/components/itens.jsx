@@ -1,59 +1,100 @@
 import { useState } from "react";
 
 function Itens() {
-  const [fabricante, setFabricante] = useState("");
-  const [categoria, setCategoria] = useState("");
   const [resultado, setResultado] = useState([]);
+  const [itemSelecionado, setItemSelecionado] = useState(null);
 
-  function buscarFornecedores() {
+  const oportunidades = (() => {
+    const dados = localStorage.getItem("oportunidades");
+    return dados ? JSON.parse(dados) : [];
+  })();
+
+  function buscarFornecedores(item) {
     const dados = localStorage.getItem("fornecedores");
-
-    if (!dados) {
-      setResultado([]);
-      return;
-    }
-
-    const fornecedores = JSON.parse(dados);
+    const fornecedores = dados ? JSON.parse(dados) : [];
 
     const encontrados = fornecedores.filter((f) =>
       f.especialidades.some(
         (esp) =>
-          esp.fabricante.toUpperCase() === fabricante.toUpperCase() &&
-          esp.categoria.toUpperCase() === categoria.toUpperCase()
+          esp.fabricante.toUpperCase() === item.fabricante.toUpperCase() &&
+          esp.categoria.toUpperCase() === item.categoria.toUpperCase()
       )
     );
 
+    setItemSelecionado(item);
     setResultado(encontrados);
   }
 
   return (
     <div>
-      <h2>Busca de Fornecedores por Item</h2>
+      <h2>Itens das Oportunidades</h2>
 
-      <p>Fabricante:</p>
-      <input
-        value={fabricante}
-        onChange={(e) => setFabricante(e.target.value)}
-        placeholder="Ex: EMERSON"
-      />
+      {oportunidades.length === 0 ? (
+        <p>Nenhuma oportunidade cadastrada.</p>
+      ) : (
+        oportunidades.map((op, index) => (
+          <div
+            key={index}
+            style={{
+              border: "1px solid #ccc",
+              padding: "15px",
+              marginBottom: "15px",
+            }}
+          >
+            <h3>Oportunidade {op.numero}</h3>
 
-      <p>Categoria:</p>
-      <input
-        value={categoria}
-        onChange={(e) => setCategoria(e.target.value)}
-        placeholder="Ex: Transmissor de Vazão"
-      />
+            {op.itens.length === 0 ? (
+              <p>Nenhum item cadastrado nesta oportunidade.</p>
+            ) : (
+              op.itens.map((item, i) => (
+                <div
+                  key={i}
+                  style={{
+                    border: "1px solid #ddd",
+                    padding: "10px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <p>
+                    <strong>Item:</strong> {item.itemNumero}
+                  </p>
 
-      <br />
-      <br />
+                  <p>
+                    <strong>Quantidade:</strong> {item.quantidade}
+                  </p>
 
-      <button onClick={buscarFornecedores}>
-        Buscar Fornecedores
-      </button>
+                  <p>
+                    <strong>Fabricante:</strong> {item.fabricante}
+                  </p>
+
+                  <p>
+                    <strong>Categoria:</strong> {item.categoria}
+                  </p>
+
+                  <p>
+                    <strong>Descrição:</strong> {item.descricao}
+                  </p>
+
+                  <button onClick={() => buscarFornecedores(item)}>
+                    Buscar fornecedores
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        ))
+      )}
 
       <hr />
 
-      <h3>Fornecedores encontrados</h3>
+      <h3>Resultado da busca</h3>
+
+      {itemSelecionado && (
+        <p>
+          Item selecionado: {itemSelecionado.fabricante} |{" "}
+          {itemSelecionado.categoria}
+        </p>
+      )}
 
       {resultado.length === 0 ? (
         <p>Nenhum fornecedor encontrado.</p>
@@ -62,7 +103,7 @@ function Itens() {
           <div
             key={index}
             style={{
-              border: "1px solid #ccc",
+              border: "1px solid #999",
               padding: "10px",
               marginBottom: "10px",
             }}
