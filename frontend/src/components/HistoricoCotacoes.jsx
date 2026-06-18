@@ -10,7 +10,17 @@ function HistoricoCotacoes() {
     return dados ? JSON.parse(dados) : [];
   });
 
+  function salvarCotacoes(lista) {
+    setCotacoes(lista);
+    localStorage.setItem("cotacoes", JSON.stringify(lista));
+  }
+
   function registrarCotacao() {
+    if (!fornecedor || !oportunidade) {
+      alert("Preencha fornecedor e oportunidade.");
+      return;
+    }
+
     const nova = {
       fornecedor,
       oportunidade,
@@ -18,17 +28,21 @@ function HistoricoCotacoes() {
       data: new Date().toLocaleDateString("pt-BR"),
     };
 
-    const atualizadas = [...cotacoes, nova];
-
-    setCotacoes(atualizadas);
-
-    localStorage.setItem(
-      "cotacoes",
-      JSON.stringify(atualizadas)
-    );
+    salvarCotacoes([...cotacoes, nova]);
 
     setFornecedor("");
     setOportunidade("");
+    setStatus("Aguardando resposta");
+
+    alert("Cotação registrada!");
+  }
+
+  function alterarStatus(index, novoStatus) {
+    const atualizadas = cotacoes.map((cotacao, i) =>
+      i === index ? { ...cotacao, status: novoStatus } : cotacao
+    );
+
+    salvarCotacoes(atualizadas);
   }
 
   return (
@@ -47,53 +61,65 @@ function HistoricoCotacoes() {
         onChange={(e) => setOportunidade(e.target.value)}
       />
 
-      <p>Status:</p>
-
-      <select
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-      >
+      <p>Status inicial:</p>
+      <select value={status} onChange={(e) => setStatus(e.target.value)}>
         <option>Aguardando resposta</option>
         <option>Respondido</option>
         <option>Sem retorno</option>
+        <option>Não participaremos</option>
+        <option>Cotado</option>
         <option>Pedido emitido</option>
       </select>
 
       <br />
       <br />
 
-      <button onClick={registrarCotacao}>
-        Registrar Cotação
-      </button>
+      <button onClick={registrarCotacao}>Registrar Cotação</button>
 
       <hr />
 
       <h3>Histórico</h3>
 
-      {cotacoes.map((c, index) => (
-        <div
-          key={index}
-          style={{
-            border: "1px solid #ccc",
-            padding: "10px",
-            marginBottom: "10px",
-          }}
-        >
-          <strong>{c.fornecedor}</strong>
+      {cotacoes.length === 0 ? (
+        <p>Nenhuma cotação registrada.</p>
+      ) : (
+        cotacoes.map((c, index) => (
+          <div
+            key={index}
+            style={{
+              border: "1px solid #ccc",
+              padding: "10px",
+              marginBottom: "10px",
+            }}
+          >
+            <strong>{c.fornecedor}</strong>
 
-          <br />
+            <br />
 
-          Oportunidade: {c.oportunidade}
+            Oportunidade: {c.oportunidade}
 
-          <br />
+            <br />
 
-          Status: {c.status}
+            Data: {c.data}
 
-          <br />
+            <p>
+              <strong>Status:</strong>
+            </p>
 
-          Data: {c.data}
-        </div>
-      ))}
+            <select
+              value={c.status}
+              onChange={(e) => alterarStatus(index, e.target.value)}
+            >
+              <option>Aguardando resposta</option>
+              <option>Respondido</option>
+              <option>Sem retorno</option>
+              <option>Não participaremos</option>
+              <option>Cotado</option>
+              <option>Pedido emitido</option>
+            </select>
+          </div>
+        ))
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { useState } from "react";
 function Oportunidades() {
   const [numero, setNumero] = useState("");
   const [vencimento, setVencimento] = useState("");
-  const [status, setStatus] = useState("Em análise");
+  const [status, setStatus] = useState("Não analisada");
   const [itemNumero, setItemNumero] = useState("");
   const [quantidade, setQuantidade] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -14,6 +14,11 @@ function Oportunidades() {
     const dados = localStorage.getItem("oportunidades");
     return dados ? JSON.parse(dados) : [];
   });
+
+  function salvarOportunidades(lista) {
+    setOportunidades(lista);
+    localStorage.setItem("oportunidades", JSON.stringify(lista));
+  }
 
   function sugerirClassificacao(texto) {
     const t = texto.toUpperCase();
@@ -56,11 +61,6 @@ function Oportunidades() {
     setCategoria(categoriaSugerida);
   }
 
-  function salvarOportunidades(lista) {
-    setOportunidades(lista);
-    localStorage.setItem("oportunidades", JSON.stringify(lista));
-  }
-
   function criarOportunidade() {
     if (!numero) {
       alert("Informe o número da oportunidade.");
@@ -78,9 +78,19 @@ function Oportunidades() {
 
     setNumero("");
     setVencimento("");
-    setStatus("Em análise");
+    setStatus("Não analisada");
 
     alert("Oportunidade criada!");
+  }
+
+  function alterarStatus(numeroOportunidade, novoStatus) {
+    const atualizadas = oportunidades.map((op) =>
+      op.numero === numeroOportunidade
+        ? { ...op, status: novoStatus }
+        : op
+    );
+
+    salvarOportunidades(atualizadas);
   }
 
   function adicionarItem(numeroOportunidade) {
@@ -134,14 +144,14 @@ function Oportunidades() {
         placeholder="Ex: 21/09/2026"
       />
 
-      <p>Status:</p>
+      <p>Status inicial:</p>
       <select value={status} onChange={(e) => setStatus(e.target.value)}>
+        <option>Não analisada</option>
         <option>Em análise</option>
-        <option>Sem interesse</option>
-        <option>Com interesse</option>
-        <option>Cotação enviada</option>
-        <option>Aguardando resposta</option>
-        <option>Finalizada</option>
+        <option>Interessante</option>
+        <option>Cotando</option>
+        <option>Proposta enviada</option>
+        <option>Encerrada</option>
       </select>
 
       <br />
@@ -153,88 +163,110 @@ function Oportunidades() {
 
       <h3>Oportunidades cadastradas</h3>
 
-      {oportunidades.map((op, index) => (
-        <div
-          key={index}
-          style={{
-            border: "1px solid #ccc",
-            padding: "15px",
-            marginBottom: "15px",
-          }}
-        >
-          <h3>{op.numero}</h3>
-          <p>
-            <strong>Vencimento:</strong> {op.vencimento}
-          </p>
-          <p>
-            <strong>Status:</strong> {op.status}
-          </p>
-
-          <h4>Adicionar item nesta oportunidade</h4>
-
-          <p>Nº do item:</p>
-          <input
-            value={itemNumero}
-            onChange={(e) => setItemNumero(e.target.value)}
-            placeholder="Ex: 1"
-          />
-
-          <p>Quantidade:</p>
-          <input
-            value={quantidade}
-            onChange={(e) => setQuantidade(e.target.value)}
-            placeholder="Ex: 2"
-          />
-
-          <p>Descrição:</p>
-          <textarea
-            rows="6"
-            cols="80"
-            value={descricao}
-            onChange={(e) => {
-              setDescricao(e.target.value);
-              sugerirClassificacao(e.target.value);
+      {oportunidades.length === 0 ? (
+        <p>Nenhuma oportunidade cadastrada.</p>
+      ) : (
+        oportunidades.map((op, index) => (
+          <div
+            key={index}
+            style={{
+              border:
+                op.status === "Não analisada"
+                  ? "2px solid #000"
+                  : "1px solid #ccc",
+              padding: "15px",
+              marginBottom: "15px",
+              fontWeight: op.status === "Não analisada" ? "bold" : "normal",
             }}
-            placeholder="Cole aqui a descrição do item"
-          />
+          >
+            <h3>{op.numero}</h3>
 
-          <p>Fabricante:</p>
-          <input
-            value={fabricante}
-            onChange={(e) => setFabricante(e.target.value)}
-            placeholder="Ex: EMERSON"
-          />
+            <p>
+              <strong>Vencimento:</strong> {op.vencimento}
+            </p>
 
-          <p>Categoria:</p>
-          <input
-            value={categoria}
-            onChange={(e) => setCategoria(e.target.value)}
-            placeholder="Ex: Transmissor de Vazão"
-          />
+            <p>
+              <strong>Status:</strong>
+            </p>
 
-          <br />
-          <br />
+            <select
+              value={op.status}
+              onChange={(e) => alterarStatus(op.numero, e.target.value)}
+            >
+              <option>Não analisada</option>
+              <option>Em análise</option>
+              <option>Interessante</option>
+              <option>Cotando</option>
+              <option>Proposta enviada</option>
+              <option>Encerrada</option>
+            </select>
 
-          <button onClick={() => adicionarItem(op.numero)}>
-            Adicionar item
-          </button>
+            <h4>Adicionar item nesta oportunidade</h4>
 
-          <h4>Itens</h4>
+            <p>Nº do item:</p>
+            <input
+              value={itemNumero}
+              onChange={(e) => setItemNumero(e.target.value)}
+              placeholder="Ex: 1"
+            />
 
-          {op.itens.length === 0 ? (
-            <p>Nenhum item cadastrado.</p>
-          ) : (
-            <ul>
-              {op.itens.map((item, i) => (
-                <li key={i}>
-                  Item {item.itemNumero} | Qtd {item.quantidade} |{" "}
-                  {item.fabricante} | {item.categoria} | {item.descricao}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ))}
+            <p>Quantidade:</p>
+            <input
+              value={quantidade}
+              onChange={(e) => setQuantidade(e.target.value)}
+              placeholder="Ex: 2"
+            />
+
+            <p>Descrição:</p>
+            <textarea
+              rows="6"
+              cols="80"
+              value={descricao}
+              onChange={(e) => {
+                setDescricao(e.target.value);
+                sugerirClassificacao(e.target.value);
+              }}
+              placeholder="Cole aqui a descrição do item"
+            />
+
+            <p>Fabricante:</p>
+            <input
+              value={fabricante}
+              onChange={(e) => setFabricante(e.target.value)}
+              placeholder="Ex: EMERSON"
+            />
+
+            <p>Categoria:</p>
+            <input
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+              placeholder="Ex: Transmissor de Vazão"
+            />
+
+            <br />
+            <br />
+
+            <button onClick={() => adicionarItem(op.numero)}>
+              Adicionar item
+            </button>
+
+            <h4>Itens</h4>
+
+            {op.itens.length === 0 ? (
+              <p>Nenhum item cadastrado.</p>
+            ) : (
+              <ul>
+                {op.itens.map((item, i) => (
+                  <li key={i}>
+                    Item {item.itemNumero} | Qtd {item.quantidade} |{" "}
+                    {item.fabricante} | {item.categoria} | {item.descricao}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))
+      )}
     </div>
   );
 }
