@@ -15,6 +15,47 @@ function Oportunidades() {
     return dados ? JSON.parse(dados) : [];
   });
 
+  function sugerirClassificacao(texto) {
+    const t = texto.toUpperCase();
+
+    let fabricanteSugerido = "";
+    let categoriaSugerida = "";
+
+    if (t.includes("EMERSON")) fabricanteSugerido = "EMERSON";
+    else if (t.includes("WEG")) fabricanteSugerido = "WEG";
+    else if (t.includes("SKF")) fabricanteSugerido = "SKF";
+    else if (t.includes("SIEMENS")) fabricanteSugerido = "SIEMENS";
+    else if (t.includes("ABB")) fabricanteSugerido = "ABB";
+    else if (t.includes("SCHNEIDER")) fabricanteSugerido = "SCHNEIDER";
+    else if (t.includes("YOKOGAWA")) fabricanteSugerido = "YOKOGAWA";
+    else if (t.includes("SMAR")) fabricanteSugerido = "SMAR";
+
+    if (
+      t.includes("TRANSMISSOR DE VAZÃO") ||
+      t.includes("TRANSMISSOR DE VAZAO")
+    ) {
+      categoriaSugerida = "Transmissor de Vazão";
+    } else if (
+      t.includes("TRANSMISSOR DE PRESSÃO") ||
+      t.includes("TRANSMISSOR DE PRESSAO")
+    ) {
+      categoriaSugerida = "Transmissor de Pressão";
+    } else if (t.includes("TRANSMISSOR DE TEMPERATURA")) {
+      categoriaSugerida = "Transmissor de Temperatura";
+    } else if (t.includes("ROLAMENTO")) {
+      categoriaSugerida = "Rolamento";
+    } else if (t.includes("CONTATOR")) {
+      categoriaSugerida = "Contator";
+    } else if (t.includes("INVERSOR")) {
+      categoriaSugerida = "Inversor de Frequência";
+    } else if (t.includes("VÁLVULA") || t.includes("VALVULA")) {
+      categoriaSugerida = "Válvula";
+    }
+
+    setFabricante(fabricanteSugerido);
+    setCategoria(categoriaSugerida);
+  }
+
   function salvarOportunidades(lista) {
     setOportunidades(lista);
     localStorage.setItem("oportunidades", JSON.stringify(lista));
@@ -122,8 +163,12 @@ function Oportunidades() {
           }}
         >
           <h3>{op.numero}</h3>
-          <p><strong>Vencimento:</strong> {op.vencimento}</p>
-          <p><strong>Status:</strong> {op.status}</p>
+          <p>
+            <strong>Vencimento:</strong> {op.vencimento}
+          </p>
+          <p>
+            <strong>Status:</strong> {op.status}
+          </p>
 
           <h4>Adicionar item nesta oportunidade</h4>
 
@@ -141,6 +186,18 @@ function Oportunidades() {
             placeholder="Ex: 2"
           />
 
+          <p>Descrição:</p>
+          <textarea
+            rows="6"
+            cols="80"
+            value={descricao}
+            onChange={(e) => {
+              setDescricao(e.target.value);
+              sugerirClassificacao(e.target.value);
+            }}
+            placeholder="Cole aqui a descrição do item"
+          />
+
           <p>Fabricante:</p>
           <input
             value={fabricante}
@@ -153,15 +210,6 @@ function Oportunidades() {
             value={categoria}
             onChange={(e) => setCategoria(e.target.value)}
             placeholder="Ex: Transmissor de Vazão"
-          />
-
-          <p>Descrição:</p>
-          <textarea
-            rows="6"
-            cols="80"
-            value={descricao}
-            onChange={(e) => setDescricao(e.target.value)}
-            placeholder="Cole aqui a descrição do item"
           />
 
           <br />
