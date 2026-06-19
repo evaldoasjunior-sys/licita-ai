@@ -48,6 +48,16 @@ function HistoricoCotacoes() {
     salvarCotacoes(atualizadas);
   }
 
+  function excluirCotacao(index) {
+    const confirmar = window.confirm("Tem certeza que deseja excluir esta cotação?");
+
+    if (!confirmar) return;
+
+    const atualizadas = cotacoes.filter((_, i) => i !== index);
+
+    salvarCotacoes(atualizadas);
+  }
+
   return (
     <div>
       <h2>Histórico de Cotações</h2>
@@ -112,6 +122,13 @@ function HistoricoCotacoes() {
               <option>Cotado</option>
               <option>Pedido emitido</option>
             </select>
+
+            <br />
+            <br />
+
+            <button onClick={() => excluirCotacao(index)}>
+              Excluir Cotação
+            </button>
           </div>
         ))
       )}
