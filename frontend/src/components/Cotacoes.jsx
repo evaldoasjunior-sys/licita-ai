@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 function Cotacoes() {
   const [oportunidade, setOportunidade] = useState("");
+  const [item, setItem] = useState("");
   const [fornecedor, setFornecedor] = useState("");
   const [email, setEmail] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -13,6 +14,8 @@ function Cotacoes() {
     if (dados) {
       const cotacao = JSON.parse(dados);
 
+      setOportunidade(cotacao.oportunidade || "");
+      setItem(cotacao.item || "");
       setFornecedor(cotacao.fornecedor || "");
       setEmail(cotacao.email || "");
       setDescricao(cotacao.descricao || "");
@@ -24,9 +27,10 @@ function Cotacoes() {
     const cotacoes = dados ? JSON.parse(dados) : [];
 
     const novaCotacao = {
+      oportunidade,
+      item,
       fornecedor,
       email,
-      oportunidade,
       status: "Aguardando resposta",
       data: new Date().toLocaleDateString("pt-BR"),
     };
@@ -64,6 +68,9 @@ Atenciosamente,`;
 
       <p>Oportunidade:</p>
       <input value={oportunidade} onChange={(e) => setOportunidade(e.target.value)} />
+
+      <p>Item:</p>
+      <input value={item} onChange={(e) => setItem(e.target.value)} />
 
       <p>Fornecedor:</p>
       <input value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} />

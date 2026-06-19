@@ -3,6 +3,7 @@ import { useState } from "react";
 function HistoricoCotacoes() {
   const [fornecedor, setFornecedor] = useState("");
   const [oportunidade, setOportunidade] = useState("");
+  const [item, setItem] = useState("");
   const [status, setStatus] = useState("Aguardando resposta");
 
   const [cotacoes, setCotacoes] = useState(() => {
@@ -24,6 +25,7 @@ function HistoricoCotacoes() {
     const nova = {
       fornecedor,
       oportunidade,
+      item,
       status,
       data: new Date().toLocaleDateString("pt-BR"),
     };
@@ -32,6 +34,7 @@ function HistoricoCotacoes() {
 
     setFornecedor("");
     setOportunidade("");
+    setItem("");
     setStatus("Aguardando resposta");
 
     alert("Cotação registrada!");
@@ -50,16 +53,13 @@ function HistoricoCotacoes() {
       <h2>Histórico de Cotações</h2>
 
       <p>Fornecedor:</p>
-      <input
-        value={fornecedor}
-        onChange={(e) => setFornecedor(e.target.value)}
-      />
+      <input value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} />
 
       <p>Oportunidade:</p>
-      <input
-        value={oportunidade}
-        onChange={(e) => setOportunidade(e.target.value)}
-      />
+      <input value={oportunidade} onChange={(e) => setOportunidade(e.target.value)} />
+
+      <p>Item:</p>
+      <input value={item} onChange={(e) => setItem(e.target.value)} />
 
       <p>Status inicial:</p>
       <select value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -71,8 +71,7 @@ function HistoricoCotacoes() {
         <option>Pedido emitido</option>
       </select>
 
-      <br />
-      <br />
+      <br /><br />
 
       <button onClick={registrarCotacao}>Registrar Cotação</button>
 
@@ -93,18 +92,14 @@ function HistoricoCotacoes() {
             }}
           >
             <strong>{c.fornecedor}</strong>
-
             <br />
-
             Oportunidade: {c.oportunidade}
-
             <br />
-
+            Item: {c.item || "Não informado"}
+            <br />
             Data: {c.data}
 
-            <p>
-              <strong>Status:</strong>
-            </p>
+            <p><strong>Status:</strong></p>
 
             <select
               value={c.status}

@@ -93,6 +93,20 @@ function Oportunidades() {
     salvarOportunidades(atualizadas);
   }
 
+  function excluirOportunidade(numeroOportunidade) {
+    const confirmar = window.confirm(
+      `Tem certeza que deseja excluir a oportunidade ${numeroOportunidade}?`
+    );
+
+    if (!confirmar) return;
+
+    const atualizadas = oportunidades.filter(
+      (op) => op.numero !== numeroOportunidade
+    );
+
+    salvarOportunidades(atualizadas);
+  }
+
   function adicionarItem(numeroOportunidade) {
     if (!itemNumero || !quantidade || !descricao || !fabricante || !categoria) {
       alert("Preencha item, quantidade, descrição, fabricante e categoria.");
@@ -122,6 +136,25 @@ function Oportunidades() {
     setCategoria("");
 
     alert("Item adicionado!");
+  }
+
+  function excluirItem(numeroOportunidade, indiceItem) {
+    const confirmar = window.confirm("Tem certeza que deseja excluir este item?");
+
+    if (!confirmar) return;
+
+    const atualizadas = oportunidades.map((op) => {
+      if (op.numero === numeroOportunidade) {
+        return {
+          ...op,
+          itens: op.itens.filter((_, index) => index !== indiceItem),
+        };
+      }
+
+      return op;
+    });
+
+    salvarOportunidades(atualizadas);
   }
 
   return (
@@ -180,6 +213,10 @@ function Oportunidades() {
             }}
           >
             <h3>{op.numero}</h3>
+
+            <button onClick={() => excluirOportunidade(op.numero)}>
+              Excluir Oportunidade
+            </button>
 
             <p>
               <strong>Vencimento:</strong> {op.vencimento}
@@ -260,6 +297,10 @@ function Oportunidades() {
                   <li key={i}>
                     Item {item.itemNumero} | Qtd {item.quantidade} |{" "}
                     {item.fabricante} | {item.categoria} | {item.descricao}
+                    <br />
+                    <button onClick={() => excluirItem(op.numero, i)}>
+                      Excluir Item
+                    </button>
                   </li>
                 ))}
               </ul>

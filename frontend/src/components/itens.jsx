@@ -29,23 +29,24 @@ function Itens() {
     setResultado(encontrados);
   }
 
-  function prepararCotacao(fornecedor) {
-    localStorage.setItem(
-      "cotacaoAtual",
-      JSON.stringify({
-        oportunidade: itemSelecionado.oportunidade,
-        fornecedor: fornecedor.nome,
-        email: fornecedor.email,
-        fabricante: itemSelecionado.fabricante,
-        categoria: itemSelecionado.categoria,
-        descricao: `Item ${itemSelecionado.itemNumero} - Qtd ${itemSelecionado.quantidade}
+function prepararCotacao(fornecedor) {
+  localStorage.setItem(
+    "cotacaoAtual",
+    JSON.stringify({
+      oportunidade: itemSelecionado.oportunidade,
+      item: itemSelecionado.itemNumero,
+      fornecedor: fornecedor.nome,
+      email: fornecedor.email,
+      fabricante: itemSelecionado.fabricante,
+      categoria: itemSelecionado.categoria,
+      descricao: `Item ${itemSelecionado.itemNumero} - Qtd ${itemSelecionado.quantidade}
 
 ${itemSelecionado.descricao}`,
-      })
-    );
+    })
+  );
 
-    alert("Cotação preparada. Agora abra a tela Cotações.");
-  }
+  alert("Cotação preparada. Agora abra a tela Cotações.");
+}
 
   return (
     <div>
