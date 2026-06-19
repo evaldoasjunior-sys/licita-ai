@@ -63,6 +63,21 @@ function Especialidades() {
     alert("Especialidade adicionada!");
   }
 
+  function excluirFornecedor(nomeFornecedor) {
+    const confirmar = window.confirm(
+      `Tem certeza que deseja excluir o fornecedor ${nomeFornecedor}?`
+    );
+
+    if (!confirmar) return;
+
+    const atualizados = fornecedores.filter(
+      (f) => f.nome !== nomeFornecedor
+    );
+
+    setFornecedores(atualizados);
+    setResultadoBusca([]);
+  }
+
   function buscarFornecedores() {
     const encontrados = fornecedores.filter((f) =>
       f.especialidades.some(
@@ -126,7 +141,10 @@ function Especialidades() {
         <p>Nenhum fornecedor encontrado.</p>
       ) : (
         resultadoBusca.map((f, index) => (
-          <div key={index} style={{ border: "1px solid #999", padding: "10px", marginBottom: "10px" }}>
+          <div
+            key={index}
+            style={{ border: "1px solid #999", padding: "10px", marginBottom: "10px" }}
+          >
             <strong>{f.nome}</strong><br />
             {f.email}<br />
             {f.telefone}
@@ -138,23 +156,36 @@ function Especialidades() {
 
       <h3>Fornecedores cadastrados</h3>
 
-      {fornecedores.map((f, index) => (
-        <div key={index} style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px" }}>
-          <strong>{f.nome}</strong><br />
-          {f.email}<br />
-          {f.telefone}
+      {fornecedores.length === 0 ? (
+        <p>Nenhum fornecedor cadastrado.</p>
+      ) : (
+        fornecedores.map((f, index) => (
+          <div
+            key={index}
+            style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px" }}
+          >
+            <strong>{f.nome}</strong><br />
+            {f.email}<br />
+            {f.telefone}
 
-          <h4>Especialidades</h4>
+            <br /><br />
 
-          <ul>
-            {f.especialidades.map((esp, i) => (
-              <li key={i}>
-                {esp.fabricante} | {esp.categoria}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+            <button onClick={() => excluirFornecedor(f.nome)}>
+              Excluir Fornecedor
+            </button>
+
+            <h4>Especialidades</h4>
+
+            <ul>
+              {f.especialidades.map((esp, i) => (
+                <li key={i}>
+                  {esp.fabricante} | {esp.categoria}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      )}
     </div>
   );
 }
