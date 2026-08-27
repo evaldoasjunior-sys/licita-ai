@@ -1,0 +1,13 @@
+{
+  "name": "licita-ai-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "db:init": "node scripts/init-db.js",
+    "test:api": "node scripts/smoke-api.js",
+    "test:flow": "node scripts/smoke-flow.js",
+    "dev": "node src/server.js",
+    "start": "node src/server.js"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "licita-ai",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1",
+    "build": "npm.cmd --prefix frontend run build",
+    "check": "npm.cmd run lint && npm.cmd run test:sync && npm.cmd run test:flow && npm.cmd run test:api && npm.cmd run build",
+    "lint": "npm.cmd --prefix frontend run lint",
+    "db:init": "npm.cmd --prefix backend run db:init",
+    "test:api": "npm.cmd --prefix backend run test:api",
+    "test:flow": "npm.cmd --prefix backend run test:flow",
+    "test:sync": "npm.cmd --prefix frontend run test:sync",
+    "backend": "npm.cmd --prefix backend run dev",
+    "frontend": "npm.cmd --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort"
+  }
+}

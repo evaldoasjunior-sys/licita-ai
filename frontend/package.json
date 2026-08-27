@@ -7,9 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "test:sync": "node scripts/test-sync-queue.js && node scripts/test-opportunity-sync.js && node scripts/test-backend-connection.js",
     "preview": "vite preview"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },

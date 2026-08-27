@@ -2,122 +2,66 @@
 
 ## Objetivo
 
-Automatizar o processo de análise de oportunidades da Petronect, identificação de fornecedores, geração de cotações e acompanhamento comercial.
+Automatizar o processo de analise de oportunidades da Petronect, identificacao de fornecedores, geracao de cotacoes e acompanhamento comercial em uma aplicacao local.
 
----
+## Visao atual
 
-## Módulos
+```text
+Navegador React/Vite
+  |-- componentes de oportunidades, fornecedores, cotacoes e propostas
+  |-- regras de importacao e padronizacao
+  |-- cache/fallback em localStorage
+  |-- fila persistente de sincronizacao
+  |
+  +---- HTTP em 127.0.0.1 ----> API Node.js ----> SQLite local
+```
 
-### 1. Oportunidades
+O backend escuta somente em `127.0.0.1:3333`. O frontend usa a API quando ela esta disponivel e preserva operacao local durante indisponibilidades. Essa duplicidade e transitoria e deve ser reduzida nos proximos incrementos.
 
-Responsável pelo cadastro e gerenciamento das oportunidades.
+## Frontend
 
-Campos principais:
+- React 19 e Vite 8, em JavaScript.
+- `domain/`: leitura de Word e padronizacao dos itens.
+- `services/backendApi.js`: contratos HTTP.
+- `services/dataServices.js`: acesso ao fallback local.
+- `services/syncQueue.js`: fila de escritas pendentes.
+- `storage/database.js`: migracao e persistencia no `localStorage`.
+- `components/`: painel, oportunidades, historico de importacoes, fornecedores, cotacoes, propostas e backup.
 
-* Número da oportunidade
-* Data de vencimento
-* Status
-* Lista de itens
+Os componentes legados que nao faziam parte da navegacao ativa foram removidos durante a estabilizacao da linha de base.
 
----
+## Backend e banco
 
-### 2. Itens
+- Servidor HTTP nativo do Node.js.
+- Persistencia com `node:sqlite`.
+- Migracoes versionadas em `backend/db/migrations` e aplicadas na inicializacao.
+- Tabelas: oportunidades, itens, fornecedores, especialidades, cotacoes, propostas e itens de proposta.
+- Operacoes de backup executadas em transacao.
+- Testes de banco e API usam arquivos SQLite temporarios isolados.
 
-Responsável pela análise dos itens da oportunidade.
+O arquivo `backend/data/licita-ai.sqlite` contem dados operacionais locais e nao faz parte do codigo-fonte.
 
-Campos principais:
+## Fluxo funcional implementado
 
-* Número do item
-* Quantidade
-* Descrição
-* Fabricante
-* Categoria
+```text
+Arquivo Word
+  -> oportunidades e itens
+  -> padronizacao local
+  -> busca de fornecedores
+  -> geracao de cotacao
+  -> resposta comercial
+  -> proposta interna
+  -> acompanhamento no painel
+```
 
-Funções:
+## Limitacoes conhecidas
 
-* Buscar fornecedores compatíveis
+- oportunidades ainda sao gravadas na API por substituicao integral da colecao;
+- SQLite e `localStorage` coexistem como fontes durante a transicao;
+- nao ha autenticacao, auditoria ou suporte multiusuario;
+- a validacao dos contratos da API ainda e limitada;
+- automacao Petronect, envio real de e-mail e IA ainda nao foram implementados.
 
----
+## Proximo incremento planejado
 
-### 3. Base Comercial
-
-Responsável pelo cadastro de fornecedores e especialidades.
-
-Campos principais:
-
-* Fornecedor
-* Email
-* Telefone
-* Fabricante
-* Categoria
-
-Funções:
-
-* Cadastro de especialidades
-* Busca por fabricante e categoria
-
----
-
-### 4. Cotações
-
-Responsável pela geração de solicitações de cotação.
-
-Funções:
-
-* Geração automática de e-mail
-* Integração com histórico
-
----
-
-### 5. Histórico
-
-Responsável pelo acompanhamento das cotações.
-
-Status possíveis:
-
-* Aguardando resposta
-* Respondido
-* Sem retorno
-* Pedido emitido
-
----
-
-## Fluxo Principal
-
-Oportunidade
-↓
-Itens
-↓
-Busca de Fornecedores
-↓
-Geração de Cotação
-↓
-Histórico
-↓
-Resposta do Fornecedor
-
----
-
-## Roadmap
-
-### MVP 1.9
-
-Integração completa:
-
-Oportunidade → Item → Cotação
-
-### MVP 2.0
-
-Banco de dados
-
-### MVP 2.1
-
-Importação automática de oportunidades
-
-### MVP 2.2
-
-Integração com e-mail
-
-### MVP 3.0
-
-IA para classificação automática de itens e fornecedores
+Concluir a gestao granular de oportunidades e itens na API e no frontend, evitando substituicao integral da base e implementando o cadastro, edicao, pesquisa e filtros previstos nos requisitos.

@@ -216,3 +216,65 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# LICITA AI - Node, builds and test output
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+coverage/
+**/coverage/
+.vite/
+**/.vite/
+*.tsbuildinfo
+
+# LICITA AI - operational databases (never version business data)
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.db3
+*.db3-*
+
+# LICITA AI - logs and temporary files
+logs/
+**/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+tmp/
+**/tmp/
+temp/
+**/temp/
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# LICITA AI - local configuration and credentials
+.env
+.env.*
+!.env.example
+*.local
+*.local.*
+config.local.*
+secrets.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# LICITA AI - local editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
