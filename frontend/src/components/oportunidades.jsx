@@ -1,803 +1,545 @@
-import { useEffect, useState } from "react";
-import {
-  buildOpportunitiesFromWordRows,
-  readWordOpportunityRows,
-} from "../domain/wordOpportunityImport";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { buildOpportunitiesFromWordRows, readWordOpportunityRows } from "../domain/wordOpportunityImport";
 import { backendApi } from "../services/backendApi";
-import { loadOpportunitiesWithFallback } from "../services/opportunitySync";
 import {
-  createId,
-  normalizeText,
-  opportunityService,
-  quotationService,
-  supplierService,
-} from "../services/dataServices";
+  createOpportunityDraftStore,
+  createWordImportState,
+  confirmImportItemUnit,
+  executeOpportunityDraft,
+  filterOpportunities,
+  friendlyOpportunityError,
+  importItemsWithoutUnit,
+  itemPayload,
+  opportunityPayload,
+  updateImportItemUnit,
+  validateItemForm,
+  validateOpportunityForm,
+} from "../services/opportunityManagement";
+import { loadOpportunitiesWithFallback } from "../services/opportunitySync";
+import { opportunityService } from "../services/dataServices";
+import { OPPORTUNITY_STATUSES } from "../storage/database";
 
-function listarLinhasDasOportunidades(oportunidades) {
-  return oportunidades.flatMap((op) =>
-    op.items
-      .filter((item) => !item.archivedAt)
-      .map((item) => ({
-        opportunityId: op.id,
-        opportunityNumber: op.number,
-        opportunityDueDate: op.dueDate,
-        item,
-        number: op.number,
-        itemNumber: item.itemNumber,
-        quantity: item.quantity,
-        description: item.rawDescription || item.description,
-        deliveryLocation: item.deliveryLocation,
-        attachmentRequired: item.attachmentRequired,
-        dueDate: op.dueDate,
-        status: item.quotationStatus || op.status,
-        category: item.category,
-        manufacturers: item.manufacturers.map((manufacturer) => manufacturer.name).join(", "),
-      }))
-  );
+const EMPTY_OPPORTUNITY = { number: "", title: "", dueDate: "", status: OPPORTUNITY_STATUSES[0], version: 1 };
+const EMPTY_ITEM = {
+  itemNumber: "",
+  description: "",
+  quantity: "",
+  unit: "",
+  reference: "",
+  manufacturer: "",
+  deliveryLocation: "",
+  deliveryDeadline: "",
+  technicalNotes: "",
+  version: 1,
+};
+
+function FieldError({ message }) {
+  return message ? <span className="field-error">{message}</span> : null;
 }
 
-function fornecedorAtendeItem(fornecedor, item) {
-  const fabricantes = item.manufacturers.map((manufacturer) => normalizeText(manufacturer.name));
-  const categoria = normalizeText(item.category);
-
-  return fornecedor.specialties.some(
-    (specialty) =>
-      fabricantes.includes(normalizeText(specialty.manufacturer)) &&
-      normalizeText(specialty.category) === categoria
-  );
-}
-
-function criteriosDoItem(item) {
-  return {
-    fabricantes: item.manufacturers.map((manufacturer) => manufacturer.name),
-    categoria: item.category || "Nao identificada",
+function draftLabel(draft) {
+  const labels = {
+    "opportunity-create": "Nova oportunidade",
+    "opportunity-update": "Edicao de oportunidade",
+    "opportunity-archive": "Arquivamento de oportunidade",
+    "opportunity-restore": "Restauracao de oportunidade",
+    "item-create": "Novo item",
+    "item-update": "Edicao de item",
+    "item-archive": "Arquivamento de item",
+    "item-restore": "Restauracao de item",
+    "word-import": "Importacao Word",
+    "legacy-import": "Dados locais anteriores",
   };
-}
-
-function formatarFabricantesReferencias(item) {
-  if (item.manufacturerReferences?.length > 0) {
-    return item.manufacturerReferences
-      .map((reference) =>
-        `${reference.manufacturer}: ${
-          reference.codes.length > 0 ? reference.codes.join(", ") : "referencia nao identificada"
-        }`
-      )
-      .join(" | ");
-  }
-
-  return item.manufacturers.map((manufacturer) => manufacturer.name).join(", ") || "Nao informado";
-}
-
-function formatarEspecificacoesItem(item) {
-  if (item.standardizedSpecifications?.length > 0) {
-    return item.standardizedSpecifications.join(" | ");
-  }
-
-  return item.description || "Nao informado";
-}
-
-function montarTextoCotacao(item, opportunity, fornecedor, descricaoEditada = "") {
-  const descricaoOriginal = item.rawDescription || item.description;
-  const descricaoParaCotacao = descricaoEditada || descricaoOriginal;
-
-  return `Assunto: Solicitacao de Cotacao - Oportunidade ${opportunity.number} / Item ${item.itemNumber}
-
-Prezados,
-
-Solicitamos cotacao para o material abaixo:
-
-Oportunidade: ${opportunity.number}
-Vencimento: ${opportunity.dueDate || "Nao informado"}
-Item: ${item.itemNumber}
-Quantidade: ${item.quantity} ${item.unit || ""}
-Local de entrega: ${item.deliveryLocation || "Nao informado"}
-Categoria: ${item.category || "Nao identificada"}
-Fabricante / referencia: ${formatarFabricantesReferencias(item)}
-Especificacoes: ${formatarEspecificacoesItem(item)}
-
-Descricao original:
-${descricaoParaCotacao}
-
-Fornecedor: ${fornecedor.name}
-Email: ${fornecedor.email || "Nao informado"}
-
-Favor informar:
-- Preco unitario
-- Prazo de entrega
-- Condicoes de pagamento
-- Validade da proposta
-- Frete, se aplicavel
-
-Atenciosamente,`;
+  return labels[draft.type] || "Operacao pendente";
 }
 
 function Oportunidades({ backendStatus, syncRevision }) {
-  const [importandoWord, setImportandoWord] = useState(false);
-  const [linhasImportadas, setLinhasImportadas] = useState([]);
-  const [mensagemImportacao, setMensagemImportacao] = useState("");
-  const [origemDados, setOrigemDados] = useState("local");
-  const [mensagemIntegracao, setMensagemIntegracao] = useState("");
-  const [modalFornecedores, setModalFornecedores] = useState({
-    aberto: false,
-    item: null,
-    opportunity: null,
-    fornecedores: [],
-    fornecedorSelecionadoId: "",
-    etapa: "selecao",
-    totalFornecedores: 0,
-    fornecedorPendente: null,
-    descricaoEditada: "",
-    descricaoOriginal: "",
-    textoCotacao: "",
-    mensagem: "",
-    novoFornecedor: { email: "", name: "", phone: "", taxId: "" },
-  });
+  const [draftStore] = useState(() => createOpportunityDraftStore(window.localStorage));
+  const [opportunities, setOpportunities] = useState(() => opportunityService.listAll());
+  const [drafts, setDrafts] = useState(() => draftStore.list());
+  const [source, setSource] = useState("local");
+  const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState("status");
+  const [busy, setBusy] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [filters, setFilters] = useState({ search: "", status: "all", deadline: "all" });
+  const [expandedId, setExpandedId] = useState(null);
+  const [opportunityForm, setOpportunityForm] = useState(null);
+  const [opportunityErrors, setOpportunityErrors] = useState({});
+  const [itemForm, setItemForm] = useState(null);
+  const [itemErrors, setItemErrors] = useState({});
+  const [importing, setImporting] = useState(false);
+  const [importRows, setImportRows] = useState([]);
 
-  const [oportunidades, setOportunidades] = useState(() => opportunityService.listActive());
+  const refreshDrafts = useCallback(() => setDrafts(draftStore.list()), [draftStore]);
 
-  function persistir(lista) {
-    setOportunidades(lista.filter((op) => !op.archivedAt));
-    opportunityService.saveAll(lista);
-
-    if (origemDados === "sqlite") {
-      backendApi
-        .saveOpportunities(lista)
-        .then((resultado) => {
-          opportunityService.saveAll(resultado.data);
-          setOportunidades(resultado.data.filter((op) => !op.archivedAt));
-          setMensagemIntegracao("Oportunidades salvas no banco SQLite.");
-        })
-        .catch(() => {
-          setOrigemDados("local");
-          setMensagemIntegracao("Nao foi possivel salvar no SQLite. Alteracao mantida localmente.");
-        });
-    }
-  }
+  const load = useCallback(async () => {
+    const result = await loadOpportunitiesWithFallback({
+      api: backendApi,
+      localStore: opportunityService,
+      draftStore,
+    });
+    setOpportunities(result.opportunities);
+    setSource(result.source);
+    setMessage(result.message);
+    setMessageKind(result.source === "sqlite" ? "status" : "warning");
+    refreshDrafts();
+    return result;
+  }, [draftStore, refreshDrafts]);
 
   useEffect(() => {
-    let ativo = true;
+    const timer = window.setTimeout(() => load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [backendStatus, load, syncRevision]);
 
-    async function carregarOportunidadesDoBackend() {
-      const resultado = await loadOpportunitiesWithFallback({
-        api: backendApi,
-        localStore: opportunityService,
+  const visibleOpportunities = useMemo(
+    () => filterOpportunities(opportunities, { ...filters, archived: showArchived }),
+    [filters, opportunities, showArchived]
+  );
+
+  function preserveDraft(draft, error) {
+    const saved = draftStore.save({
+      ...draft,
+      payload: error?.importState || draft.payload,
+      errorCode: error?.code || "offline",
+      errorStatus: error?.status || null,
+      lastError: friendlyOpportunityError(error),
+    });
+    refreshDrafts();
+    return saved;
+  }
+
+  function applyConfirmedResult(draft, data) {
+    if (!data) return;
+    const current = opportunityService.listAll();
+    if (draft.type === "word-import" || draft.type === "legacy-import") {
+      const imported = (data.opportunities || [])
+        .filter((entry) => entry.completed && entry.remoteOpportunity)
+        .map((entry) => ({ ...entry.remoteOpportunity, items: entry.createdItems || [] }));
+      const importedIds = new Set(imported.map((opportunity) => opportunity.id));
+      const next = [...current.filter((opportunity) => !importedIds.has(opportunity.id)), ...imported];
+      opportunityService.saveAll(next);
+      setOpportunities(next);
+      return;
+    }
+    if (draft.type.startsWith("opportunity-")) {
+      const existing = current.find((opportunity) => opportunity.id === data.id);
+      const next = existing
+        ? current.map((opportunity) => opportunity.id === data.id ? { ...existing, ...data } : opportunity)
+        : [...current, data];
+      opportunityService.saveAll(next);
+      setOpportunities(next);
+      return;
+    }
+    if (draft.type.startsWith("item-")) {
+      const next = current.map((opportunity) => {
+        if (opportunity.id !== draft.opportunityId) return opportunity;
+        const exists = (opportunity.items || []).some((item) => item.id === data.id);
+        return {
+          ...opportunity,
+          items: exists
+            ? opportunity.items.map((item) => item.id === data.id ? { ...item, ...data } : item)
+            : [...(opportunity.items || []), data],
+        };
       });
-      if (!ativo) return;
+      opportunityService.saveAll(next);
+      setOpportunities(next);
+    }
+  }
 
-      setOrigemDados(resultado.source);
-      setMensagemIntegracao(resultado.message);
-      setOportunidades(resultado.opportunities.filter((op) => !op.archivedAt));
+  async function runOperation(draft, successMessage) {
+    setBusy(true);
+    let result;
+    try {
+      result = await executeOpportunityDraft(backendApi, draft);
+    } catch (error) {
+      preserveDraft(draft, error);
+      setMessage(friendlyOpportunityError(error));
+      setMessageKind(error?.status === 409 ? "conflict" : "warning");
+      setBusy(false);
+      return false;
     }
 
-    carregarOportunidadesDoBackend();
-
-    return () => {
-      ativo = false;
-    };
-  }, [backendStatus, syncRevision]);
-
-  function todasOportunidades() {
-    return opportunityService.listAll();
+    try {
+      if (draft.id) draftStore.remove(draft.id);
+      applyConfirmedResult(draft, result?.data);
+      await load();
+      setMessage(successMessage);
+      setMessageKind("success");
+      refreshDrafts();
+      return true;
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function declinarItem(row) {
-    const confirmar = window.confirm(
-      `Declinar o item ${row.itemNumber} da oportunidade ${row.number}? Ele sera removido da tabela.`
-    );
-    if (!confirmar) return;
+  function openNewOpportunity() {
+    setOpportunityErrors({});
+    setOpportunityForm({ mode: "create", values: { ...EMPTY_OPPORTUNITY } });
+  }
 
-    const agora = new Date().toISOString();
-    const atualizadas = todasOportunidades().map((op) => {
-      if (op.id !== row.opportunityId) return op;
-
-      return {
-        ...op,
-        updatedAt: agora,
-        items: op.items.map((item) =>
-          item.id === row.item.id
-            ? { ...item, quotationStatus: "Declinado", archivedAt: agora, updatedAt: agora }
-            : item
-        ),
-      };
+  function openEditOpportunity(opportunity) {
+    setOpportunityErrors({});
+    setOpportunityForm({
+      mode: "edit",
+      opportunityId: opportunity.id,
+      values: {
+        number: opportunity.number || "",
+        title: opportunity.title || "",
+        dueDate: opportunity.dueDate || "",
+        status: opportunity.status || OPPORTUNITY_STATUSES[0],
+        version: opportunity.version,
+      },
     });
-
-    persistir(atualizadas);
   }
 
-  async function importarWord(event) {
+  async function submitOpportunity(event) {
+    event.preventDefault();
+    const errors = validateOpportunityForm(opportunityForm.values);
+    setOpportunityErrors(errors);
+    if (Object.keys(errors).length) return;
+    const editing = opportunityForm.mode === "edit";
+    const completed = await runOperation(
+      {
+        type: editing ? "opportunity-update" : "opportunity-create",
+        opportunityId: opportunityForm.opportunityId,
+        payload: opportunityPayload(opportunityForm.values, { editing }),
+      },
+      editing ? "Oportunidade atualizada no SQLite." : "Oportunidade cadastrada no SQLite."
+    );
+    if (completed) setOpportunityForm(null);
+  }
+
+  async function toggleOpportunityArchive(opportunity) {
+    const action = opportunity.archivedAt ? "restaurar" : "arquivar";
+    if (!window.confirm(`Deseja ${action} a oportunidade ${opportunity.number}?`)) return;
+    await runOperation(
+      {
+        type: opportunity.archivedAt ? "opportunity-restore" : "opportunity-archive",
+        opportunityId: opportunity.id,
+        payload: { version: opportunity.version },
+      },
+      `Oportunidade ${opportunity.archivedAt ? "restaurada" : "arquivada"} no SQLite.`
+    );
+  }
+
+  function openNewItem(opportunity) {
+    setItemErrors({});
+    setItemForm({ mode: "create", opportunityId: opportunity.id, values: { ...EMPTY_ITEM } });
+  }
+
+  function openEditItem(opportunity, item) {
+    setItemErrors({});
+    setItemForm({
+      mode: "edit",
+      opportunityId: opportunity.id,
+      itemId: item.id,
+      values: {
+        itemNumber: item.itemNumber || "",
+        description: item.description || item.rawDescription || "",
+        quantity: item.quantity || "",
+        unit: item.unit || "",
+        reference: item.reference || "",
+        manufacturer: item.manufacturer || item.manufacturers?.map((entry) => entry.name).join(", ") || "",
+        deliveryLocation: item.deliveryLocation || "",
+        deliveryDeadline: item.deliveryDeadline || "",
+        technicalNotes: item.technicalNotes || "",
+        version: item.version,
+      },
+    });
+  }
+
+  async function submitItem(event) {
+    event.preventDefault();
+    const errors = validateItemForm(itemForm.values);
+    setItemErrors(errors);
+    if (Object.keys(errors).length) return;
+    const editing = itemForm.mode === "edit";
+    const completed = await runOperation(
+      {
+        type: editing ? "item-update" : "item-create",
+        opportunityId: itemForm.opportunityId,
+        itemId: itemForm.itemId,
+        payload: itemPayload(itemForm.values, { editing }),
+      },
+      editing ? "Item atualizado no SQLite." : "Item cadastrado no SQLite."
+    );
+    if (completed) setItemForm(null);
+  }
+
+  async function toggleItemArchive(opportunity, item) {
+    const action = item.archivedAt ? "restaurar" : "arquivar";
+    if (!window.confirm(`Deseja ${action} o item ${item.itemNumber || item.id}?`)) return;
+    await runOperation(
+      {
+        type: item.archivedAt ? "item-restore" : "item-archive",
+        opportunityId: opportunity.id,
+        itemId: item.id,
+        payload: { version: item.version },
+      },
+      `Item ${item.archivedAt ? "restaurado" : "arquivado"} no SQLite.`
+    );
+  }
+
+  async function importWord(event) {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    setImportandoWord(true);
-    setMensagemImportacao("");
-
+    setImporting(true);
     try {
       const rows = await readWordOpportunityRows(file);
-      const atuais = todasOportunidades();
-      const ativas = atuais.filter((op) => !op.archivedAt);
-      const { opportunities: novasOportunidades } = buildOpportunitiesFromWordRows(rows, file.name, []);
-
-      if (novasOportunidades.length === 0) {
-        setLinhasImportadas(rows);
-        setMensagemImportacao(
-          `${rows.length} linha(s) lida(s). Nenhuma oportunidade valida foi importada. As oportunidades atuais continuam na tela principal.`
+      setImportRows(rows);
+      const active = opportunities.filter((opportunity) => !opportunity.archivedAt);
+      const result = buildOpportunitiesFromWordRows(rows, file.name, active);
+      if (!result.opportunities.length) {
+        setMessage(
+          result.skippedNumbers.length
+            ? "As oportunidades do arquivo ja existem na base ativa; nenhum registro foi alterado."
+            : "Nenhuma oportunidade valida foi encontrada no arquivo."
         );
+        setMessageKind("warning");
         return;
       }
-
-      if (ativas.length > 0) {
-        const confirmarNovaImportacao = window.confirm(
-          "Deseja iniciar uma nova importacao? As oportunidades atuais serao movidas para o historico de importacoes."
-        );
-
-        if (!confirmarNovaImportacao) {
-          setMensagemImportacao("Importacao cancelada. As oportunidades atuais continuam na tela principal.");
-          return;
-        }
-      }
-
-      const agora = new Date().toISOString();
-      const importBatchId = createId("import");
-      const oportunidadesArquivadas = atuais.map((op) =>
-        op.archivedAt
-          ? op
-          : {
-              ...op,
-              archivedAt: agora,
-              updatedAt: agora,
-              archiveReason: "Substituida por nova importacao",
-            }
+      const completed = await runOperation(
+        { type: "word-import", payload: createWordImportState(result.opportunities) },
+        `${result.opportunities.length} oportunidade(s) importada(s) pela API granular.`
       );
-      const novasComLote = novasOportunidades.map((op) => ({
-        ...op,
-        importBatchId,
-        importFileName: file.name,
-        importedAt: agora,
-        rawSnapshot: { ...(op.rawSnapshot || {}), fileName: file.name, importBatchId, importedAt: agora },
-      }));
-
-      if (novasComLote.length > 0) {
-        persistir([...oportunidadesArquivadas, ...novasComLote]);
-      }
-
-      setLinhasImportadas(rows);
-      setMensagemImportacao(
-        `${rows.length} linha(s) lida(s). ${novasComLote.length} oportunidade(s) importada(s). ${
-          ativas.length
-        } oportunidade(s) anterior(es) movida(s) para o historico.`
-      );
+      if (!completed) setMessageKind("warning");
     } catch (error) {
-      setMensagemImportacao(error.message || "Nao foi possivel importar o arquivo Word.");
+      setMessage(error.message || "Nao foi possivel ler o arquivo Word.");
+      setMessageKind("warning");
     } finally {
-      setImportandoWord(false);
+      setImporting(false);
       event.target.value = "";
     }
   }
 
-  function abrirBuscaFornecedor(row) {
-    const fornecedores = supplierService.listActive();
-    const encontrados = fornecedores.filter((fornecedor) => fornecedorAtendeItem(fornecedor, row.item));
-    const opportunity = {
-      id: row.opportunityId,
-      number: row.opportunityNumber,
-      dueDate: row.opportunityDueDate,
-    };
-
-    setModalFornecedores({
-      aberto: true,
-      item: row.item,
-      opportunity,
-      fornecedores: encontrados,
-      fornecedorSelecionadoId: encontrados[0]?.id || "",
-      etapa: "selecao",
-      totalFornecedores: fornecedores.length,
-      fornecedorPendente: null,
-      descricaoEditada: row.item.rawDescription || row.item.description || "",
-      descricaoOriginal: row.item.rawDescription || row.item.description || "",
-      textoCotacao: "",
-      mensagem: "",
-      novoFornecedor: { email: "", name: "", phone: "", taxId: "" },
-    });
-  }
-
-  function fecharBuscaFornecedor() {
-    setModalFornecedores((atual) => ({
-      ...atual,
-      aberto: false,
-      etapa: "selecao",
-      fornecedorPendente: null,
-      descricaoEditada: "",
-      descricaoOriginal: "",
-      mensagem: "",
-      textoCotacao: "",
-    }));
-  }
-
-  function atualizarNovoFornecedor(campo, valor) {
-    setModalFornecedores((atual) => ({
-      ...atual,
-      novoFornecedor: { ...atual.novoFornecedor, [campo]: valor },
-    }));
-  }
-
-  function montarNovoFornecedorParaItem() {
-    if (!modalFornecedores.item || !modalFornecedores.novoFornecedor.name.trim()) return null;
-
-    const agora = new Date().toISOString();
-    const criterios = criteriosDoItem(modalFornecedores.item);
-    const specialties = criterios.fabricantes.map((fabricante) => ({
-      id: createId("specialty"),
-      manufacturer: fabricante,
-      category: criterios.categoria,
-      notes: "Criado a partir da tabela de oportunidades.",
-    }));
-    const fornecedor = {
-      id: createId("supplier"),
-      name: modalFornecedores.novoFornecedor.name.trim(),
-      legalName: "",
-      taxId: modalFornecedores.novoFornecedor.taxId.trim(),
-      email: modalFornecedores.novoFornecedor.email.trim(),
-      phone: modalFornecedores.novoFornecedor.phone.trim(),
-      status: "Ativo",
-      notes: "",
-      specialties,
-      createdAt: agora,
-      updatedAt: agora,
-      archivedAt: null,
-    };
-
-    return fornecedor;
-  }
-
-  async function salvarFornecedorSeNovo(fornecedor) {
-    if (!fornecedor?.isNew) return fornecedor;
-
-    const fornecedorParaSalvar = { ...fornecedor };
-    delete fornecedorParaSalvar.isNew;
-    supplierService.saveAll([...supplierService.listAll(), fornecedorParaSalvar]);
-
-    try {
-      await backendApi.saveSupplier(fornecedorParaSalvar, { isNew: true });
-    } catch {
-      // A base local continua sendo a garantia operacional quando o backend nao esta ligado.
+  async function retryDraft(draft) {
+    const completed = await runOperation(draft, `${draftLabel(draft)} confirmado no SQLite.`);
+    if (completed) {
+      setOpportunityForm(null);
+      setItemForm(null);
     }
-
-    return fornecedorParaSalvar;
   }
 
-  function atualizarTextoCotacao(textoCotacao) {
-    setModalFornecedores((atual) => ({ ...atual, textoCotacao }));
+  function discardDraft(draft) {
+    if (!window.confirm(`Descartar o rascunho "${draftLabel(draft)}"?`)) return;
+    draftStore.remove(draft.id);
+    refreshDrafts();
   }
 
-  function atualizarDescricaoCotacao(descricaoEditada) {
-    setModalFornecedores((atual) => {
-      const textoCotacao =
-        atual.item && atual.opportunity && atual.fornecedorPendente
-          ? montarTextoCotacao(atual.item, atual.opportunity, atual.fornecedorPendente, descricaoEditada)
-          : atual.textoCotacao;
-
-      return { ...atual, descricaoEditada, textoCotacao };
+  function changeDraftItemUnit(draft, opportunityIndex, itemIndex, unit) {
+    const payload = updateImportItemUnit(draft.payload, opportunityIndex, itemIndex, unit);
+    const pending = importItemsWithoutUnit(payload).length;
+    draftStore.save({
+      ...draft,
+      payload,
+      lastError: pending
+        ? `Unidade não identificada em ${pending} item(ns).`
+        : "Unidades informadas. Revise e tente novamente para gravar na API.",
     });
+    refreshDrafts();
   }
 
-  async function confirmarGeracaoCotacao(fornecedorPendente = modalFornecedores.fornecedorPendente) {
-    const fornecedor = await salvarFornecedorSeNovo(fornecedorPendente);
-    if (!modalFornecedores.item || !modalFornecedores.opportunity || !fornecedor) return;
-
-    const descricaoFoiAlterada =
-      normalizeText(modalFornecedores.descricaoEditada) !== normalizeText(modalFornecedores.descricaoOriginal);
-
-    if (descricaoFoiAlterada) {
-      const confirmar = window.confirm("A descricao do item foi alterada. Deseja confirmar a alteracao e gerar a cotacao?");
-      if (!confirmar) return;
-    }
-
-    const textoCotacao =
-      modalFornecedores.textoCotacao ||
-      montarTextoCotacao(
-        modalFornecedores.item,
-        modalFornecedores.opportunity,
-        fornecedor,
-        modalFornecedores.descricaoEditada
-      );
-    const agora = new Date().toISOString();
-    const novaCotacao = {
-      id: createId("quotation"),
-      opportunityId: modalFornecedores.opportunity.id,
-      opportunityNumber: modalFornecedores.opportunity.number,
-      itemId: modalFornecedores.item.id,
-      itemNumber: modalFornecedores.item.itemNumber,
-      supplierId: fornecedor.id,
-      supplierName: fornecedor.name,
-      email: fornecedor.email,
-      description: textoCotacao,
-      itemDescription: modalFornecedores.descricaoEditada,
-      status: "Cotacao gerada",
-      requestedAt: new Date().toLocaleDateString("pt-BR"),
-      emailSentAt: "",
-      respondedAt: "",
-      unitPrice: "",
-      deliveryDays: "",
-      validityDays: "",
-      paymentTerms: "",
-      freight: "",
-      notes: "",
-      createdAt: agora,
-      updatedAt: agora,
-      archivedAt: null,
-    };
-    const atualizadas = todasOportunidades().map((op) => {
-      if (op.id !== modalFornecedores.opportunity.id) return op;
-
-      return {
-        ...op,
-        updatedAt: agora,
-        items: op.items.map((item) =>
-          item.id === modalFornecedores.item.id
-            ? { ...item, quotationStatus: "Cotacao gerada", updatedAt: agora }
-            : item
-        ),
-      };
+  function confirmDraftItemUnit(draft, opportunityIndex, itemIndex) {
+    const payload = confirmImportItemUnit(draft.payload, opportunityIndex, itemIndex);
+    const pending = importItemsWithoutUnit(payload).length;
+    draftStore.save({
+      ...draft,
+      payload,
+      lastError: pending
+        ? `Unidade não identificada em ${pending} item(ns).`
+        : "Unidades confirmadas. Tente novamente para gravar na API.",
     });
-
-    quotationService.saveAll([...quotationService.listAll(), novaCotacao]);
-
-    try {
-      await backendApi.saveQuotation(novaCotacao, { isNew: true });
-    } catch {
-      // Se a API estiver offline, a cotacao permanece salva localmente e pode ser enviada ao SQLite pela tela Dados.
-    }
-
-    persistir(atualizadas);
-    setModalFornecedores((atual) => ({
-      ...atual,
-      etapa: "gerada",
-      fornecedorPendente: fornecedor,
-      item: { ...atual.item, quotationStatus: "Cotacao gerada" },
-      mensagem: "Cotacao gerada e status do item atualizado.",
-      textoCotacao,
-    }));
+    refreshDrafts();
   }
-
-  function gerarCotacaoDoSelecionado() {
-    const fornecedor =
-      modalFornecedores.fornecedores.find(
-        (item) => item.id === modalFornecedores.fornecedorSelecionadoId
-      ) || modalFornecedores.fornecedores[0];
-    const textoCotacao =
-      modalFornecedores.item && modalFornecedores.opportunity && fornecedor
-        ? montarTextoCotacao(
-            modalFornecedores.item,
-            modalFornecedores.opportunity,
-            fornecedor,
-            modalFornecedores.descricaoEditada
-          )
-        : "";
-
-    setModalFornecedores((atual) => ({
-      ...atual,
-      etapa: "confirmacao",
-      fornecedorPendente: fornecedor,
-      mensagem: "",
-      textoCotacao,
-    }));
-  }
-
-  function prepararNovoFornecedorEConfirmar() {
-    const fornecedor = montarNovoFornecedorParaItem();
-    if (!fornecedor) return;
-    const fornecedorPendente = { ...fornecedor, isNew: true };
-    const textoCotacao =
-      modalFornecedores.item && modalFornecedores.opportunity
-        ? montarTextoCotacao(
-            modalFornecedores.item,
-            modalFornecedores.opportunity,
-            fornecedorPendente,
-            modalFornecedores.descricaoEditada
-          )
-        : "";
-
-    setModalFornecedores((atual) => ({
-      ...atual,
-      etapa: "confirmacao",
-      fornecedorPendente,
-      mensagem: "",
-      textoCotacao,
-    }));
-  }
-
-  function voltarParaSelecaoCotacao() {
-    setModalFornecedores((atual) => ({
-      ...atual,
-      etapa: "selecao",
-      fornecedorPendente: null,
-      mensagem: "",
-      textoCotacao: "",
-    }));
-  }
-
-  const linhasDaTabela = listarLinhasDasOportunidades(oportunidades);
 
   return (
-    <div>
-      <h2>Oportunidades retiradas da Petronect</h2>
+    <div className="opportunity-management">
+      <div className="page-title-row">
+        <div>
+          <h2>Gestao de oportunidades e itens</h2>
+          <p>O SQLite e a fonte oficial. Alteracoes so aparecem como salvas depois da confirmacao da API.</p>
+        </div>
+        <button disabled={busy} onClick={openNewOpportunity} type="button">Nova oportunidade</button>
+      </div>
 
-      <p>
-        Cadastre aqui as mesmas informacoes que hoje sao copiadas do PDF da Petronect para o Word:
-        numero, item, quantidade, descricao, local de entrega e vencimento.
+      <p className={`integration-message integration-message-${messageKind}`} role={messageKind === "warning" ? "alert" : "status"}>
+        Fonte: {source === "sqlite" ? "SQLite" : "cache local de consulta"}. {message}
       </p>
-      <p className="import-message">
-        Base em uso: {origemDados === "sqlite" ? "Banco SQLite" : "Navegador local"}. {mensagemIntegracao}
-      </p>
+      {messageKind === "conflict" && (
+        <button disabled={busy} onClick={load} type="button">Recarregar dados atuais</button>
+      )}
+
+      {drafts.length > 0 && (
+        <section className="draft-panel" aria-labelledby="draft-title">
+          <h3 id="draft-title">Rascunhos e operacoes pendentes</h3>
+          <p>Estes dados ainda nao foram confirmados pelo backend.</p>
+          <ul>
+            {drafts.map((draft) => (
+              <li key={draft.id}>
+                <span><strong>{draftLabel(draft)}</strong>{draft.lastError ? ` — ${draft.lastError}` : ""}</span>
+                {importItemsWithoutUnit(draft.payload).map(({ opportunityIndex, itemIndex, item }) => (
+                  <label className="unit-review-field" key={`${opportunityIndex}-${itemIndex}`}>
+                    <strong className="unit-review-warning">Unidade não identificada</strong>
+                    <span>{item.description}</span>
+                    <input
+                      aria-label={`Unidade não identificada: ${item.description}`}
+                      maxLength="50"
+                      onChange={(event) => changeDraftItemUnit(draft, opportunityIndex, itemIndex, event.target.value)}
+                      placeholder="Informe a unidade de medida"
+                      value={item.unit || ""}
+                    />
+                    <button
+                      disabled={!item.unit?.trim()}
+                      onClick={() => confirmDraftItemUnit(draft, opportunityIndex, itemIndex)}
+                      type="button"
+                    >
+                      Confirmar unidade
+                    </button>
+                  </label>
+                ))}
+                <span className="table-actions">
+                  <button disabled={busy || importItemsWithoutUnit(draft.payload).length > 0} onClick={() => retryDraft(draft)} type="button">Tentar novamente</button>
+                  <button disabled={busy} onClick={() => discardDraft(draft)} type="button">Descartar</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {opportunityForm && (
+        <section className="management-form-panel" aria-labelledby="opportunity-form-title">
+          <h3 id="opportunity-form-title">
+            {opportunityForm.mode === "edit" ? "Editar oportunidade" : "Cadastrar oportunidade"}
+          </h3>
+          <form onSubmit={submitOpportunity}>
+            <div className="management-form-grid">
+              <label>Numero *
+                <input maxLength="100" onChange={(event) => setOpportunityForm((current) => ({ ...current, values: { ...current.values, number: event.target.value } }))} value={opportunityForm.values.number} />
+                <FieldError message={opportunityErrors.number} />
+              </label>
+              <label>Titulo
+                <input maxLength="500" onChange={(event) => setOpportunityForm((current) => ({ ...current, values: { ...current.values, title: event.target.value } }))} value={opportunityForm.values.title} />
+                <FieldError message={opportunityErrors.title} />
+              </label>
+              <label>Prazo de encerramento
+                <input maxLength="50" onChange={(event) => setOpportunityForm((current) => ({ ...current, values: { ...current.values, dueDate: event.target.value } }))} placeholder="DD/MM/AAAA ou AAAA-MM-DD" value={opportunityForm.values.dueDate} />
+                <FieldError message={opportunityErrors.dueDate} />
+              </label>
+              <label>Situacao
+                <select onChange={(event) => setOpportunityForm((current) => ({ ...current, values: { ...current.values, status: event.target.value } }))} value={opportunityForm.values.status}>
+                  {OPPORTUNITY_STATUSES.filter((status) => status !== "Arquivada").map((status) => <option key={status}>{status}</option>)}
+                </select>
+                <FieldError message={opportunityErrors.status} />
+              </label>
+            </div>
+            <div className="panel-actions">
+              <button disabled={busy} onClick={() => setOpportunityForm(null)} type="button">Cancelar</button>
+              <button disabled={busy} type="submit">{busy ? "Aguardando backend..." : "Salvar no SQLite"}</button>
+            </div>
+          </form>
+        </section>
+      )}
 
       <section className="import-panel">
         <h3>Importar arquivo Word</h3>
-        <p>
-          Selecione o arquivo usado hoje para copiar as oportunidades. Ao importar um novo arquivo, as oportunidades
-          atuais sao movidas para o historico e a tela principal fica apenas com a ultima importacao.
-        </p>
-
-        <input accept=".docx" disabled={importandoWord} onChange={importarWord} type="file" />
-
-        {mensagemImportacao && <p className="import-message">{mensagemImportacao}</p>}
-
-        {linhasImportadas.length > 0 && (
-          <details>
-            <summary>Ver linhas lidas do Word</summary>
-            <div className="table-scroll">
-              <table className="opportunity-table">
-                <thead>
-                  <tr>
-                    <th>N.</th>
-                    <th>ITEM</th>
-                    <th>QTDE</th>
-                    <th>DESCRICAO</th>
-                    <th>ENTREGA</th>
-                    <th>ANEXO</th>
-                    <th>VENCIMENTO</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {linhasImportadas.map((row, index) => (
-                    <tr key={`${row.number}-${row.item}-${index}`}>
-                      <td>{row.number}</td>
-                      <td>{row.item || "1"}</td>
-                      <td>{row.quantity}</td>
-                      <td>{row.description}</td>
-                      <td>{row.delivery}</td>
-                      <td>{row.attachment}</td>
-                      <td>{row.dueDate}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
-        )}
+        <p>A importacao cria cada oportunidade e item pela API granular, sem substituir ou arquivar os demais registros. Itens sem unidade identificada ficam como rascunho e so sao gravados depois da revisao.</p>
+        <label>Arquivo Word (.docx)
+          <input accept=".docx" disabled={busy || importing} onChange={importWord} type="file" />
+        </label>
+        {importRows.length > 0 && <p>{importRows.length} linha(s) lida(s) no ultimo arquivo.</p>}
       </section>
 
-      <h3>Tabela de oportunidades</h3>
+      <section className="management-filters" aria-label="Filtros de oportunidades">
+        <label>Pesquisa
+          <input onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Numero, titulo, descricao, referencia ou fabricante" type="search" value={filters.search} />
+        </label>
+        <label>Situacao
+          <select onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} value={filters.status}>
+            <option value="all">Todas</option>
+            {OPPORTUNITY_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+          </select>
+        </label>
+        <label>Prazo de encerramento
+          <select onChange={(event) => setFilters((current) => ({ ...current, deadline: event.target.value }))} value={filters.deadline}>
+            <option value="all">Todos</option>
+            <option value="overdue">Encerradas</option>
+            <option value="7">Proximos 7 dias</option>
+            <option value="30">Proximos 30 dias</option>
+            <option value="no-date">Sem prazo</option>
+          </select>
+        </label>
+        <label className="archive-toggle">
+          <input checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} type="checkbox" />
+          Mostrar arquivadas
+        </label>
+      </section>
 
-      {linhasDaTabela.length === 0 ? (
-        <p>Nenhuma oportunidade cadastrada.</p>
-      ) : (
-        <div className="table-scroll">
-          <table className="opportunity-table">
-            <thead>
-              <tr>
-                <th>N.</th>
-                <th>ITEM</th>
-                <th>QTDE</th>
-                <th>DESCRICAO</th>
-                <th>ENTREGA</th>
-                <th>ANEXO</th>
-                <th>VENCIMENTO</th>
-                <th>STATUS</th>
-                <th>CATEGORIA</th>
-                <th>FABRICANTE</th>
-                <th>ACAO</th>
-              </tr>
-            </thead>
-            <tbody>
-              {linhasDaTabela.map((row, index) => (
-                <tr key={`${row.opportunityId}-${row.itemNumber}-${index}`}>
-                  <td>{row.number}</td>
-                  <td>{row.itemNumber}</td>
-                  <td>{row.quantity}</td>
-                  <td>{row.description}</td>
-                  <td>{row.deliveryLocation || "Nao informado"}</td>
-                  <td>{row.attachmentRequired || ""}</td>
-                  <td>{row.dueDate || "Nao informado"}</td>
-                  <td>{row.status}</td>
-                  <td>{row.category || "Nao identificada"}</td>
-                  <td>{row.manufacturers || "Nao identificado"}</td>
-                  <td>
-                    <div className="table-actions">
-                      <button onClick={() => abrirBuscaFornecedor(row)} title="Busca fornecedores compativeis e abre o fluxo para gerar cotacao deste item.">Gerar cotacao</button>
-                      <button className="decline-button" onClick={() => declinarItem(row)} title="Remove este item da tabela ativa e marca como declinado.">
-                        Declinar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <p className="supplier-count">{visibleOpportunities.length} oportunidade(s) encontrada(s).</p>
+      {visibleOpportunities.length === 0 ? <p>Nenhuma oportunidade encontrada.</p> : visibleOpportunities.map((opportunity) => (
+        <article className="opportunity-card" key={opportunity.id}>
+          <header>
+            <div>
+              <h3>{opportunity.number} {opportunity.title ? `— ${opportunity.title}` : ""}</h3>
+              <p>{opportunity.status} · Encerramento: {opportunity.dueDate || "nao informado"} · Versao {opportunity.version}</p>
+            </div>
+            <div className="table-actions">
+              {!opportunity.archivedAt && <button disabled={busy} onClick={() => openEditOpportunity(opportunity)} type="button">Editar</button>}
+              <button disabled={busy} onClick={() => setExpandedId((current) => current === opportunity.id ? null : opportunity.id)} type="button">
+                {expandedId === opportunity.id ? "Ocultar itens" : "Ver itens"}
+              </button>
+              <button className={opportunity.archivedAt ? "" : "decline-button"} disabled={busy} onClick={() => toggleOpportunityArchive(opportunity)} type="button">
+                {opportunity.archivedAt ? "Restaurar" : "Arquivar"}
+              </button>
+            </div>
+          </header>
+          {expandedId === opportunity.id && (
+            <section className="opportunity-items" aria-label={`Itens da oportunidade ${opportunity.number}`}>
+              {!opportunity.archivedAt && <button disabled={busy} onClick={() => openNewItem(opportunity)} type="button">Novo item</button>}
+              {(opportunity.items || []).length === 0 ? <p>Nenhum item cadastrado.</p> : (
+                <div className="table-scroll">
+                  <table className="opportunity-table management-items-table">
+                    <thead><tr><th>Item</th><th>Descricao</th><th>Quantidade</th><th>Unidade</th><th>Referencia</th><th>Fabricante</th><th>Entrega</th><th>Acoes</th></tr></thead>
+                    <tbody>{opportunity.items.map((item) => (
+                      <tr className={item.archivedAt ? "archived-row" : ""} key={item.id}>
+                        <td>{item.itemNumber || "—"}</td><td>{item.description || item.rawDescription}</td><td>{item.quantity}</td><td>{item.unit}</td><td>{item.reference || "—"}</td><td>{item.manufacturer || "—"}</td><td>{item.deliveryLocation || "—"}</td>
+                        <td><div className="table-actions">
+                          {!item.archivedAt && !opportunity.archivedAt && <button disabled={busy} onClick={() => openEditItem(opportunity, item)} type="button">Editar</button>}
+                          {!opportunity.archivedAt && <button className={item.archivedAt ? "" : "decline-button"} disabled={busy} onClick={() => toggleItemArchive(opportunity, item)} type="button">{item.archivedAt ? "Restaurar" : "Arquivar"}</button>}
+                        </div></td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+        </article>
+      ))}
+
+      {itemForm && (
+        <div className="modal-backdrop" role="presentation">
+          <section aria-labelledby="item-form-title" aria-modal="true" className="modal-panel" role="dialog">
+            <div className="modal-title-row"><h3 id="item-form-title">{itemForm.mode === "edit" ? "Editar item" : "Cadastrar item"}</h3><button onClick={() => setItemForm(null)} type="button">Fechar</button></div>
+            <form onSubmit={submitItem}>
+              <div className="management-form-grid item-form-grid">
+                <label>Numero do item<input maxLength="50" onChange={(event) => setItemForm((current) => ({ ...current, values: { ...current.values, itemNumber: event.target.value } }))} value={itemForm.values.itemNumber} /></label>
+                <label>Quantidade *<input maxLength="50" onChange={(event) => setItemForm((current) => ({ ...current, values: { ...current.values, quantity: event.target.value } }))} value={itemForm.values.quantity} /><FieldError message={itemErrors.quantity} /></label>
+                <label>Unidade de medida *<input maxLength="50" onChange={(event) => setItemForm((current) => ({ ...current, values: { ...current.values, unit: event.target.value } }))} value={itemForm.values.unit} /><FieldError message={itemErrors.unit} /></label>
+                <label>Referencia<input maxLength="500" onChange={(event) => setItemForm((current) => ({ ...current, values: { ...current.values, reference: event.target.value } }))} value={itemForm.values.reference} /></label>
+                <label>Fabricante<input maxLength="500" onChange={(event) => setItemForm((current) => ({ ...current, values: { ...current.values, manufacturer: event.target.value } }))} value={itemForm.values.manufacturer} /></label>
+                <label>Local de entrega<input maxLength="1000" onChange={(event) => setItemForm((current) => ({ ...current, values: { ...current.values, deliveryLocation: event.target.value } }))} value={itemForm.values.deliveryLocation} /></label>
+                <label>Prazo de entrega<input maxLength="500" onChange={(event) => setItemForm((current) => ({ ...current, values: { ...current.values, deliveryDeadline: event.target.value } }))} value={itemForm.values.deliveryDeadline} /></label>
+                <label className="full-width">Descricao completa *<textarea maxLength="10000" onChange={(event) => setItemForm((current) => ({ ...current, values: { ...current.values, description: event.target.value } }))} rows="5" value={itemForm.values.description} /><FieldError message={itemErrors.description} /></label>
+                <label className="full-width">Observacoes tecnicas<textarea maxLength="10000" onChange={(event) => setItemForm((current) => ({ ...current, values: { ...current.values, technicalNotes: event.target.value } }))} rows="4" value={itemForm.values.technicalNotes} /></label>
+              </div>
+              <p>A descricao completa e o criterio tecnico soberano; referencia e fabricante sao auxiliares.</p>
+              <div className="modal-actions"><button disabled={busy} onClick={() => setItemForm(null)} type="button">Cancelar</button><button disabled={busy} type="submit">{busy ? "Aguardando backend..." : "Salvar no SQLite"}</button></div>
+            </form>
+          </section>
         </div>
       )}
-
-      <hr />
-
-      {modalFornecedores.aberto && (
-        <div className="modal-backdrop">
-          <div className="modal-panel">
-            <h3>Buscar fornecedor e gerar cotacao</h3>
-
-            <div className="modal-summary">
-              <p>
-                <strong>Oportunidade:</strong> {modalFornecedores.opportunity?.number}
-              </p>
-              <p>
-                <strong>Item:</strong> {modalFornecedores.item?.itemNumber}
-              </p>
-              <p>
-                <strong>Fabricantes buscados:</strong>{" "}
-                {modalFornecedores.item ? criteriosDoItem(modalFornecedores.item).fabricantes.join(", ") : ""}
-              </p>
-              <p>
-                <strong>Categoria buscada:</strong>{" "}
-                {modalFornecedores.item ? criteriosDoItem(modalFornecedores.item).categoria : ""}
-              </p>
-            </div>
-
-            {modalFornecedores.etapa === "selecao" && (
-              <>
-                {modalFornecedores.fornecedores.length === 0 ? (
-                  <div className="empty-search">
-                    <p>Nenhum fornecedor compativel encontrado para este fabricante e categoria.</p>
-                    {modalFornecedores.totalFornecedores > 0 && (
-                      <p>
-                        Existem {modalFornecedores.totalFornecedores} fornecedor(es) cadastrado(s), mas nenhum atende
-                        essa combinacao.
-                      </p>
-                    )}
-
-                    <h4>Cadastrar fornecedor para este item</h4>
-                    <p>Nome do fornecedor:</p>
-                    <input
-                      value={modalFornecedores.novoFornecedor.name}
-                      onChange={(event) => atualizarNovoFornecedor("name", event.target.value)}
-                    />
-                    <p>Email:</p>
-                    <input
-                      value={modalFornecedores.novoFornecedor.email}
-                      onChange={(event) => atualizarNovoFornecedor("email", event.target.value)}
-                    />
-                    <p>Telefone:</p>
-                    <input
-                      value={modalFornecedores.novoFornecedor.phone}
-                      onChange={(event) => atualizarNovoFornecedor("phone", event.target.value)}
-                    />
-                    <p>CNPJ:</p>
-                    <input
-                      value={modalFornecedores.novoFornecedor.taxId}
-                      onChange={(event) => atualizarNovoFornecedor("taxId", event.target.value)}
-                    />
-                  </div>
-                ) : (
-                  <div>
-                    <p>
-                      <strong>Selecione o fornecedor:</strong>
-                    </p>
-                    {modalFornecedores.fornecedores.map((fornecedor) => (
-                      <label className="supplier-option" key={fornecedor.id}>
-                        <input
-                          checked={modalFornecedores.fornecedorSelecionadoId === fornecedor.id}
-                          name="fornecedorCotacao"
-                          onChange={() =>
-                            setModalFornecedores((atual) => ({
-                              ...atual,
-                              fornecedorSelecionadoId: fornecedor.id,
-                              mensagem: "",
-                              textoCotacao: "",
-                            }))
-                          }
-                          type="radio"
-                        />{" "}
-                        <strong>{fornecedor.name}</strong>
-                        <br />
-                        Email: {fornecedor.email || "Nao informado"}
-                        <br />
-                        Telefone: {fornecedor.phone || "Nao informado"}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-
-            {modalFornecedores.etapa === "confirmacao" && (
-              <div className="confirmation-panel">
-                <h4>Confirmar geracao da cotacao</h4>
-                <p>
-                  <strong>Fornecedor:</strong> {modalFornecedores.fornecedorPendente?.name}
-                </p>
-                <p>
-                  <strong>Email:</strong> {modalFornecedores.fornecedorPendente?.email || "Nao informado"}
-                </p>
-                <p>
-                  <strong>Oportunidade:</strong> {modalFornecedores.opportunity?.number}
-                </p>
-                <p>
-                  <strong>Item:</strong> {modalFornecedores.item?.itemNumber}
-                </p>
-                <p>A cotacao ainda nao foi criada. Revise a descricao do item antes de confirmar.</p>
-                <p>
-                  <strong>Descricao do item:</strong>
-                </p>
-                <textarea
-                  rows="7"
-                  value={modalFornecedores.descricaoEditada}
-                  onChange={(event) => atualizarDescricaoCotacao(event.target.value)}
-                />
-                <p>
-                  <strong>Texto da cotacao:</strong>
-                </p>
-                <textarea
-                  rows="14"
-                  value={modalFornecedores.textoCotacao}
-                  onChange={(event) => atualizarTextoCotacao(event.target.value)}
-                />
-              </div>
-            )}
-
-            {modalFornecedores.mensagem && <p className="success-message">{modalFornecedores.mensagem}</p>}
-
-            {modalFornecedores.etapa === "gerada" && modalFornecedores.textoCotacao && (
-              <div>
-                <h4>Cotacao gerada</h4>
-                <textarea
-                  rows="14"
-                  value={modalFornecedores.textoCotacao}
-                  onChange={(event) => atualizarTextoCotacao(event.target.value)}
-                />
-              </div>
-            )}
-
-            <div className="modal-actions">
-              <button onClick={fecharBuscaFornecedor} title="Fecha a janela sem gerar cotacao.">Cancelar</button>
-              {modalFornecedores.etapa === "selecao" && (
-                <>
-                  {modalFornecedores.fornecedores.length === 0 ? (
-                    <button
-                      disabled={!modalFornecedores.novoFornecedor.name.trim()}
-                      onClick={prepararNovoFornecedorEConfirmar}
-                      title="Avanca para revisar a cotacao usando o novo fornecedor informado."
-                    >
-                      Continuar
-                    </button>
-                  ) : (
-                    <button
-                      disabled={modalFornecedores.fornecedores.length === 0}
-                      onClick={gerarCotacaoDoSelecionado}
-                      title="Avanca para revisar a cotacao com o fornecedor selecionado."
-                    >
-                      Continuar
-                    </button>
-                  )}
-                </>
-              )}
-              {modalFornecedores.etapa === "confirmacao" && (
-                <>
-                  <button onClick={voltarParaSelecaoCotacao} title="Volta para a selecao de fornecedor sem criar cotacao.">Voltar</button>
-                  <button onClick={() => confirmarGeracaoCotacao()} title="Cria a cotacao, salva o texto e atualiza o status do item.">Confirmar e gerar cotacao</button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

@@ -1,4 +1,4 @@
-export async function loadOpportunitiesWithFallback({ api, localStore }) {
+export async function loadOpportunitiesWithFallback({ api, localStore, draftStore }) {
   const localOpportunities = localStore.listAll();
 
   try {
@@ -6,22 +6,17 @@ export async function loadOpportunitiesWithFallback({ api, localStore }) {
     const remoteOpportunities = Array.isArray(result?.data) ? result.data : [];
 
     if (remoteOpportunities.length === 0 && localOpportunities.length > 0) {
-      const migrated = await api.saveOpportunities(localOpportunities);
-      const opportunities = Array.isArray(migrated?.data) ? migrated.data : localOpportunities;
-
-      localStore.saveAll(opportunities);
-      return {
-        opportunities,
-        source: "sqlite",
-        message: "Dados locais migrados para o banco SQLite.",
-      };
+      draftStore?.preserveLegacyImport?.(localOpportunities);
     }
 
     localStore.saveAll(remoteOpportunities);
     return {
       opportunities: remoteOpportunities,
       source: "sqlite",
-      message: "Oportunidades carregadas do banco SQLite.",
+      message:
+        remoteOpportunities.length === 0 && localOpportunities.length > 0
+          ? "SQLite vazio. Os dados locais anteriores foram preservados como rascunho; confirme a importacao antes de enviar."
+          : "Oportunidades carregadas do banco SQLite.",
     };
   } catch {
     return {

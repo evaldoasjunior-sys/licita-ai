@@ -18,8 +18,10 @@ async function requestJson(path, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const error = new Error(data?.message || `Erro HTTP ${response.status}`);
+    const error = new Error(data?.error?.message || data?.message || `Erro HTTP ${response.status}`);
     error.status = response.status;
+    error.code = data?.error?.code;
+    error.details = data?.error?.details;
     throw error;
   }
 
@@ -58,11 +60,77 @@ export const backendApi = {
     return requestJson(`/api/opportunities${query}`);
   },
 
-  saveOpportunities(opportunities) {
-    return queuedRequest("/api/opportunities", {
-      method: "PUT",
-      body: JSON.stringify({ opportunities }),
+  opportunity(id, { includeArchived = false } = {}) {
+    const query = includeArchived ? "?includeArchived=true" : "";
+    return requestJson(`/api/opportunities/${encodeURIComponent(id)}${query}`);
+  },
+
+  createOpportunity(opportunity) {
+    return requestJson("/api/opportunities", {
+      method: "POST",
+      body: JSON.stringify(opportunity),
     });
+  },
+
+  updateOpportunity(id, opportunity) {
+    return requestJson(`/api/opportunities/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(opportunity),
+    });
+  },
+
+  archiveOpportunity(id, version) {
+    return requestJson(`/api/opportunities/${encodeURIComponent(id)}/archive`, {
+      method: "POST",
+      body: JSON.stringify({ version }),
+    });
+  },
+
+  restoreOpportunity(id, version) {
+    return requestJson(`/api/opportunities/${encodeURIComponent(id)}/restore`, {
+      method: "POST",
+      body: JSON.stringify({ version }),
+    });
+  },
+
+  opportunityItems(opportunityId, { includeArchived = false } = {}) {
+    const query = includeArchived ? "?includeArchived=true" : "";
+    return requestJson(`/api/opportunities/${encodeURIComponent(opportunityId)}/items${query}`);
+  },
+
+  opportunityItem(opportunityId, itemId, { includeArchived = false } = {}) {
+    const query = includeArchived ? "?includeArchived=true" : "";
+    return requestJson(
+      `/api/opportunities/${encodeURIComponent(opportunityId)}/items/${encodeURIComponent(itemId)}${query}`
+    );
+  },
+
+  createOpportunityItem(opportunityId, item) {
+    return requestJson(`/api/opportunities/${encodeURIComponent(opportunityId)}/items`, {
+      method: "POST",
+      body: JSON.stringify(item),
+    });
+  },
+
+  updateOpportunityItem(opportunityId, itemId, item) {
+    return requestJson(
+      `/api/opportunities/${encodeURIComponent(opportunityId)}/items/${encodeURIComponent(itemId)}`,
+      { method: "PATCH", body: JSON.stringify(item) }
+    );
+  },
+
+  archiveOpportunityItem(opportunityId, itemId, version) {
+    return requestJson(
+      `/api/opportunities/${encodeURIComponent(opportunityId)}/items/${encodeURIComponent(itemId)}/archive`,
+      { method: "POST", body: JSON.stringify({ version }) }
+    );
+  },
+
+  restoreOpportunityItem(opportunityId, itemId, version) {
+    return requestJson(
+      `/api/opportunities/${encodeURIComponent(opportunityId)}/items/${encodeURIComponent(itemId)}/restore`,
+      { method: "POST", body: JSON.stringify({ version }) }
+    );
   },
 
   updateOpportunityItemQuotationStatus({ opportunityId, itemId, status }) {

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test:sync": "node scripts/test-sync-queue.js && node scripts/test-opportunity-sync.js && node scripts/test-backend-connection.js",
+    "test:sync": "node scripts/test-sync-queue.js && node scripts/test-opportunity-sync.js && node scripts/test-opportunity-management.js && node scripts/test-backend-connection.js",
     "preview": "vite preview"
   },
   "dependencies": {

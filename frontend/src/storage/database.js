@@ -112,8 +112,8 @@ function migrateItem(item) {
   const manufacturers =
     Array.isArray(item?.manufacturers) && item.manufacturers.length > 0
       ? item.manufacturers.map(migrateManufacturer)
-      : item?.fabricante
-        ? [migrateManufacturer(item.fabricante)]
+      : item?.manufacturer || item?.fabricante
+        ? [migrateManufacturer(item.manufacturer || item.fabricante)]
         : [];
 
   return {
@@ -121,7 +121,11 @@ function migrateItem(item) {
     itemNumber: text(item?.itemNumber || item?.itemNumero),
     quantity: text(item?.quantity || item?.quantidade),
     unit: text(item?.unit),
+    reference: text(item?.reference || item?.referencia),
+    manufacturer: text(item?.manufacturer || item?.fabricante),
     deliveryLocation: text(item?.deliveryLocation || item?.localEntrega || item?.localDeEntrega),
+    deliveryDeadline: text(item?.deliveryDeadline || item?.prazoEntrega),
+    technicalNotes: text(item?.technicalNotes || item?.observacoesTecnicas),
     attachmentRequired: text(item?.attachmentRequired || item?.anexo),
     quotationStatus: text(item?.quotationStatus || item?.statusCotacao),
     description: text(item?.description || item?.descricao),
@@ -154,6 +158,7 @@ function migrateItem(item) {
     createdAt: item?.createdAt || nowIso(),
     updatedAt: item?.updatedAt || nowIso(),
     archivedAt: item?.archivedAt || null,
+    version: Number(item?.version || 1),
   };
 }
 
@@ -181,6 +186,7 @@ function migrateOpportunity(opportunity) {
     createdAt,
     updatedAt: opportunity?.updatedAt || createdAt,
     archivedAt: opportunity?.archivedAt || null,
+    version: Number(opportunity?.version || 1),
   };
 }
 
