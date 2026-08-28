@@ -6,6 +6,7 @@
   "scripts": {
     "db:init": "node scripts/init-db.js",
     "test:api": "node scripts/smoke-api.js",
+    "test:opportunities": "node scripts/opportunities-api.js",
     "test:flow": "node scripts/smoke-flow.js",
     "dev": "node src/server.js",
     "start": "node src/server.js"

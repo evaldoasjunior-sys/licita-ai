@@ -187,12 +187,21 @@ try {
 
   assert(summary.opportunities === 2, "Resumo deveria conter 2 oportunidades.");
   assert(appliedMigrations.some((migration) => migration.version === "001_initial.sql"), "Migracao inicial nao aplicada.");
+  assert(
+    appliedMigrations.some((migration) => migration.version === "002_granular_opportunities.sql"),
+    "Migracao granular nao aplicada."
+  );
   assert(summary.items === 1, "Resumo deveria conter 1 item.");
   assert(activeOpportunities.length === 1, "Deveria haver 1 oportunidade ativa.");
   assert(allOpportunities.length === 2, "Historico deveria preservar oportunidade arquivada.");
   assert(suppliers.length === 1, "Deveria haver 1 fornecedor ativo.");
   assert(quotations.length === 1 && quotations[0].status === "Respondido", "Cotacao respondida nao encontrada.");
   assert(proposals.length === 1 && proposals[0].items.length === 1, "Proposta com item nao encontrada.");
+
+  const reopened = initializeDatabase(testDatabasePath);
+  const migrationCount = reopened.prepare("SELECT COUNT(*) AS total FROM schema_migrations").get().total;
+  reopened.close();
+  assert(migrationCount === appliedMigrations.length, "Reaplicacao idempotente duplicou migracoes.");
 
   console.log("Smoke flow OK.");
   console.log(JSON.stringify(summary, null, 2));

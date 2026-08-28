@@ -111,8 +111,8 @@ function insertOpportunity(database, opportunity) {
     `INSERT INTO opportunities (
       id, source_platform, external_id, number, title, due_date, status,
       import_batch_id, import_file_name, imported_at, archive_reason,
-      raw_snapshot, created_at, updated_at, archived_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      raw_snapshot, created_at, updated_at, archived_at, version
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       opportunity.id,
       opportunity.sourcePlatform || "word",
@@ -129,6 +129,7 @@ function insertOpportunity(database, opportunity) {
       createdAt,
       updatedAt,
       valueOrNull(opportunity.archivedAt),
+      Number.isInteger(opportunity.version) && opportunity.version > 0 ? opportunity.version : 1,
     ]
   );
 
@@ -146,8 +147,9 @@ function insertOpportunityItem(database, opportunityId, item) {
       attachment_required, quotation_status, description, raw_description,
       category, standard, dimensions, standardized_attributes,
       standardized_specifications, standardization_observations,
-      manufacturer_references, codes, manufacturers, created_at, updated_at, archived_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      manufacturer_references, codes, manufacturers, created_at, updated_at, archived_at,
+      reference, manufacturer, delivery_deadline, technical_notes, version
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       item.id,
       opportunityId,
@@ -171,6 +173,11 @@ function insertOpportunityItem(database, opportunityId, item) {
       createdAt,
       updatedAt,
       valueOrNull(item.archivedAt),
+      valueOrNull(item.reference),
+      valueOrNull(item.manufacturer),
+      valueOrNull(item.deliveryDeadline),
+      valueOrNull(item.technicalNotes),
+      Number.isInteger(item.version) && item.version > 0 ? item.version : 1,
     ]
   );
 }
@@ -604,10 +611,44 @@ export function replaceOpportunities(database, opportunities) {
     throw new Error("Lista de oportunidades invalida.");
   }
 
+  const existingOpportunities = new Map(
+    listOpportunities(database, { includeArchived: true }).map((opportunity) => [opportunity.id, opportunity])
+  );
+  const compatibleOpportunities = opportunities.map((opportunity) => {
+    const existingOpportunity = existingOpportunities.get(opportunity.id);
+    const existingItems = new Map((existingOpportunity?.items || []).map((item) => [item.id, item]));
+
+    return {
+      ...opportunity,
+      version: existingOpportunity
+        ? existingOpportunity.version + 1
+        : Number.isInteger(opportunity.version) && opportunity.version > 0
+          ? opportunity.version
+          : 1,
+      items: (opportunity.items || []).map((item) => {
+        const existingItem = existingItems.get(item.id);
+        return {
+          ...item,
+          reference: item.reference === undefined ? existingItem?.reference : item.reference,
+          manufacturer: item.manufacturer === undefined ? existingItem?.manufacturer : item.manufacturer,
+          deliveryDeadline: item.deliveryDeadline === undefined
+            ? existingItem?.deliveryDeadline
+            : item.deliveryDeadline,
+          technicalNotes: item.technicalNotes === undefined ? existingItem?.technicalNotes : item.technicalNotes,
+          version: existingItem
+            ? existingItem.version + 1
+            : Number.isInteger(item.version) && item.version > 0
+              ? item.version
+              : 1,
+        };
+      }),
+    };
+  });
+
   database.exec("BEGIN TRANSACTION;");
   try {
     clearOpportunities(database);
-    opportunities.forEach((opportunity) => insertOpportunity(database, opportunity));
+    compatibleOpportunities.forEach((opportunity) => insertOpportunity(database, opportunity));
     database.exec("COMMIT;");
   } catch (error) {
     database.exec("ROLLBACK;");
@@ -701,6 +742,7 @@ export function listOpportunities(database, { includeArchived = false } = {}) {
     createdAt: opportunity.created_at,
     updatedAt: opportunity.updated_at,
     archivedAt: opportunity.archived_at,
+    version: opportunity.version,
     items: items
       .filter((item) => item.opportunity_id === opportunity.id)
       .map((item) => ({
@@ -725,6 +767,11 @@ export function listOpportunities(database, { includeArchived = false } = {}) {
         createdAt: item.created_at,
         updatedAt: item.updated_at,
         archivedAt: item.archived_at,
+        reference: item.reference,
+        manufacturer: item.manufacturer,
+        deliveryDeadline: item.delivery_deadline,
+        technicalNotes: item.technical_notes,
+        version: item.version,
       })),
   }));
 }
