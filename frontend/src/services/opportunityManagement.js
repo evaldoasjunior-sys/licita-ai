@@ -131,7 +131,16 @@ export function filterOpportunities(opportunities, filters, now = new Date()) {
     }
     if (!query) return true;
     const itemText = (opportunity.items || [])
-      .map((item) => [item.description, item.rawDescription, item.reference, item.manufacturer].join(" "))
+      .map((item) =>
+        [
+          item.description,
+          item.rawDescription,
+          item.reference,
+          item.manufacturer,
+          ...(item.manufacturers || []).map((entry) => entry.name),
+          ...(item.manufacturerReferences || []).flatMap((entry) => [entry.manufacturer, ...(entry.codes || [])]),
+        ].join(" ")
+      )
       .join(" ");
     return normalizeText([opportunity.number, opportunity.title, itemText].join(" ")).includes(query);
   });

@@ -29,11 +29,14 @@ assert(Object.keys(validateItemForm({ description: "Item", quantity: "2,5", unit
 
 const opportunities = [
   { id: "active-1", number: "ABC-100", title: "Bombas", status: "Em analise", dueDate: "05/09/2026", archivedAt: null, items: [{ description: "Bomba centrifuga", reference: "REF-9", manufacturer: "ACME" }] },
+  { id: "legacy", number: "ABC-150", title: "Legado", status: "Em analise", dueDate: "", archivedAt: null, items: [{ description: "Item legado", manufacturers: [{ name: "FAB-LEGADO" }], manufacturerReferences: [{ manufacturer: "FAB-LEGADO", codes: ["REF-LEGADA"] }] }] },
   { id: "active-2", number: "ABC-200", title: "Valvulas", status: "Cotando", dueDate: "", archivedAt: null, items: [] },
   { id: "archived", number: "OLD-1", title: "Historico", status: "Encerrada", dueDate: "01/08/2026", archivedAt: "x", items: [] },
 ];
 assert(filterOpportunities(opportunities, { archived: false, search: "ref-9", status: "all", deadline: "all" }).length === 1, "Pesquisa por referencia falhou.");
 assert(filterOpportunities(opportunities, { archived: false, search: "acme", status: "all", deadline: "all" }).length === 1, "Pesquisa por fabricante falhou.");
+assert(filterOpportunities(opportunities, { archived: false, search: "fab-legado", status: "all", deadline: "all" }).length === 1, "Pesquisa por fabricante legado falhou.");
+assert(filterOpportunities(opportunities, { archived: false, search: "ref-legada", status: "all", deadline: "all" }).length === 1, "Pesquisa por referencia legada falhou.");
 assert(filterOpportunities(opportunities, { archived: false, search: "", status: "Cotando", deadline: "all" }).length === 1, "Filtro de situacao falhou.");
 assert(filterOpportunities(opportunities, { archived: false, search: "", status: "all", deadline: "7" }, new Date("2026-08-30T12:00:00")).length === 1, "Filtro de prazo falhou.");
 assert(filterOpportunities(opportunities, { archived: true, search: "", status: "all", deadline: "all" }).length === 1, "Alternancia de arquivadas falhou.");
@@ -169,6 +172,6 @@ await importWordGranular(partialApi, partialState);
 assert(partialCalls.filter(([type]) => type === "op").length === 1, "Reconexao duplicou a oportunidade importada.");
 assert(partialCalls.filter(([type]) => type === "item").length === 2, "Reconexao perdeu ou duplicou itens importados.");
 assert(putCalls === 0, "Importacao Word chamou o PUT integral.");
-assert(opportunities.length === 3, "Operacoes de teste alteraram oportunidades nao relacionadas.");
+assert(opportunities.length === 4, "Operacoes de teste alteraram oportunidades nao relacionadas.");
 
 console.log("Opportunity management OK.");
